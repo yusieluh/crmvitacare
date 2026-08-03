@@ -1,0 +1,7 @@
+/* VITACARE CRM — reutiliza variables del tema (--wine, --teal, --shadow, etc.)
+   definidas en vitacare-theme/assets/css/main.css. No se redefinen aquí para
+   no duplicar ni desincronizar la identidad visual VITACARE. */
+
+.admin-section-title {
+	margin-top: 0;
+}
