@@ -44,10 +44,21 @@ vitacare-crm/
 
 ## Estado
 
-- **Fase 1** esqueleto + **Fase 1H (PR-0) hardening** — plugin **v0.1.1** en `main`.
-- **Siguiente:** PR-1 settings Meta; App Meta para WhatsApp.
+- Plugin **v0.2.0**: esqueleto + hardening + **settings Meta** (PR-0 + PR-1).
+- **Siguiente:** PR-2 REST lectura; PR-3 WhatsApp inbound; App Meta.
 
-Detalle y changelog: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
+Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
+
+## Ajustes Meta (admin)
+
+1. WordPress → menú **CRM VITACARE** (solo administradores / `manage_options`).
+2. Completar tokens o definir constants en `wp-config.php` (preferido en producción).
+3. Activar flag **WhatsApp**.
+4. En Meta for Developers, webhook URL:
+   `https://vitacareec.org/wp-json/vitacare-crm/v1/webhooks/meta`  
+   (pretty permalinks ON).
+
+Sin secretos o con flag OFF, el webhook responde **403** (fail-closed).
 
 ## Instalación (resumen)
 

@@ -55,11 +55,42 @@ $total_open = array_sum( $open_by_channel );
 			<p>
 				<?php
 				echo esc_html__(
-					'Fase 1H: estructura base, acceso restringido y página /crm listas. Los canales (WhatsApp, Facebook, Instagram, correo) se conectan en las siguientes fases.',
+					'Fase 1S: ajustes Meta en el admin de WordPress. WhatsApp inbound/outbound se conectan en la siguiente fase (PR-3/PR-4).',
 					'vitacare-crm'
 				);
 				?>
 			</p>
+			<?php if ( class_exists( 'Vitacare_Crm_Settings' ) ) : ?>
+				<ul class="vcrm-muted" style="margin:0.75rem 0;padding-left:1.2rem">
+					<li>
+						<?php
+						echo esc_html__( 'WhatsApp flag:', 'vitacare-crm' ) . ' ';
+						echo Vitacare_Crm_Settings::flag( 'whatsapp' )
+							? esc_html__( 'ON', 'vitacare-crm' )
+							: esc_html__( 'OFF', 'vitacare-crm' );
+						?>
+					</li>
+					<li>
+						<?php
+						echo esc_html__( 'Webhook listo (secret + verify + flag):', 'vitacare-crm' ) . ' ';
+						echo Vitacare_Crm_Settings::whatsapp_webhook_ready()
+							? esc_html__( 'Sí', 'vitacare-crm' )
+							: esc_html__( 'No', 'vitacare-crm' );
+						?>
+					</li>
+					<li>
+						<?php echo esc_html__( 'Webhook URL:', 'vitacare-crm' ); ?>
+						<code style="word-break:break-all"><?php echo esc_html( Vitacare_Crm_Settings::webhook_url() ); ?></code>
+					</li>
+				</ul>
+			<?php endif; ?>
+			<?php if ( current_user_can( 'manage_options' ) ) : ?>
+				<p>
+					<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings' ) ); ?>">
+						<?php echo esc_html__( 'Abrir ajustes CRM (Meta)', 'vitacare-crm' ); ?>
+					</a>
+				</p>
+			<?php endif; ?>
 			<p class="vcrm-muted">
 				<?php
 				printf(
