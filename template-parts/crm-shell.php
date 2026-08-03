@@ -55,10 +55,14 @@ $total_open = array_sum( $open_by_channel );
 			<p>
 				<?php
 				echo esc_html__(
-					'Fase 1S: ajustes Meta en el admin de WordPress. WhatsApp inbound/outbound se conectan en la siguiente fase (PR-3/PR-4).',
+					'API de conversaciones lista (lectura + PATCH). WhatsApp inbound se conecta en la siguiente fase (PR-3).',
 					'vitacare-crm'
 				);
 				?>
+			</p>
+			<p class="vcrm-muted">
+				<code>GET /wp-json/vitacare-crm/v1/conversations</code>
+				· DB v<?php echo esc_html( (string) get_option( 'vitacare_crm_db_version', '0' ) ); ?>
 			</p>
 			<?php if ( class_exists( 'Vitacare_Crm_Settings' ) ) : ?>
 				<ul class="vcrm-muted" style="margin:0.75rem 0;padding-left:1.2rem">

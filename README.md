@@ -44,10 +44,20 @@ vitacare-crm/
 
 ## Estado
 
-- Plugin **v0.2.0**: esqueleto + hardening + **settings Meta** (PR-0 + PR-1).
-- **Siguiente:** PR-2 REST lectura; PR-3 WhatsApp inbound; App Meta.
+- Plugin **v0.3.0**: hardening + settings Meta + **API conversaciones (DB v2)**.
+- **Siguiente:** PR-3 WhatsApp inbound; App Meta.
 
 Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
+
+### API rápida (autenticado)
+
+```
+GET  /wp-json/vitacare-crm/v1/conversations
+GET  /wp-json/vitacare-crm/v1/conversations/{id}/messages
+PATCH /wp-json/vitacare-crm/v1/conversations/{id}
+```
+
+Requiere usuario con `vitacare_crm_access` + nonce REST.
 
 ## Ajustes Meta (admin)
 
