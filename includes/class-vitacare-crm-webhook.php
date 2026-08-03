@@ -2,9 +2,8 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Webhooks Meta (WhatsApp / futuro FB-IG).
- * Rutas siempre registradas. Sin secret o flag off → 403 fail-closed.
- * Ingest completo de mensajes: PR-3. Aquí: verify GET + POST firmado stub 200.
+ * Webhooks Meta. Rutas siempre registradas. Fail-closed sin secret/flag.
+ * PR-3: verify GET + POST HMAC + dispatch WhatsApp inbound/statuses.
  */
 final class Vitacare_Crm_Webhook {
 
@@ -28,10 +27,8 @@ final class Vitacare_Crm_Webhook {
 	}
 
 	/**
-	 * Verificación de suscripción Meta (hub.mode=subscribe).
-	 *
 	 * @param WP_REST_Request $request Request.
-	 * @return WP_REST_Response|WP_Error
+	 * @return WP_REST_Response
 	 */
 	public static function handle_get( WP_REST_Request $request ) {
 		if ( ! Vitacare_Crm_Settings::flag( 'whatsapp' ) ) {
@@ -43,7 +40,6 @@ final class Vitacare_Crm_Webhook {
 			return new WP_REST_Response( array( 'error' => 'verify_token_missing' ), 403 );
 		}
 
-		// Meta envía hub.mode / hub.verify_token / hub.challenge (con punto).
 		$query     = $request->get_query_params();
 		$mode      = (string) ( $query['hub.mode'] ?? $query['hub_mode'] ?? $request->get_param( 'hub.mode' ) ?? '' );
 		$token     = (string) ( $query['hub.verify_token'] ?? $query['hub_verify_token'] ?? $request->get_param( 'hub.verify_token' ) ?? '' );
@@ -57,15 +53,12 @@ final class Vitacare_Crm_Webhook {
 			return new WP_REST_Response( array( 'error' => 'invalid_verify_token' ), 403 );
 		}
 
-		// Meta exige body = challenge en texto plano.
 		$response = new WP_REST_Response( $challenge, 200 );
 		$response->header( 'Content-Type', 'text/plain; charset=utf-8' );
 		return $response;
 	}
 
 	/**
-	 * Recepción POST: fail-closed + HMAC. Persistencia de mensajes en PR-3.
-	 *
 	 * @param WP_REST_Request $request Request.
 	 * @return WP_REST_Response
 	 */
@@ -83,28 +76,67 @@ final class Vitacare_Crm_Webhook {
 		}
 
 		$raw = $request->get_body();
-		if ( $raw === '' || $raw === null ) {
+		if ( $raw === '' || null === $raw ) {
 			return new WP_REST_Response( array( 'error' => 'empty_body' ), 403 );
 		}
 
 		$sig = (string) $request->get_header( 'x-hub-signature-256' );
-		if ( $sig === '' ) {
-			return new WP_REST_Response( array( 'error' => 'signature_missing' ), 403 );
-		}
-
-		$expected = 'sha256=' . hash_hmac( 'sha256', $raw, $secret );
-		if ( ! hash_equals( $expected, $sig ) ) {
+		if ( $sig === '' || ! self::valid_signature( $raw, $sig, $secret ) ) {
 			return new WP_REST_Response( array( 'error' => 'signature_invalid' ), 403 );
 		}
 
-		// Firma OK: ack 200 sin writes (ingesta en PR-3).
-		return new WP_REST_Response(
-			array(
-				'ok'        => true,
-				'processed' => false,
-				'note'      => 'webhook_accepted_pending_inbound_handler',
-			),
-			200
-		);
+		$payload = json_decode( $raw, true );
+		if ( ! is_array( $payload ) ) {
+			// Evento basura: 200 sin writes para evitar storm.
+			Vitacare_Crm_Logger::debug( 'webhook_invalid_json' );
+			return new WP_REST_Response( array( 'ok' => true, 'skipped' => 'invalid_json' ), 200 );
+		}
+
+		try {
+			$stats = array(
+				'messages' => 0,
+				'statuses' => 0,
+				'skipped'  => 0,
+			);
+
+			// WhatsApp (y futuro routing multi-canal).
+			if ( Vitacare_Crm_Settings::flag( 'whatsapp' ) ) {
+				$wa = Vitacare_Crm_Channel_Whatsapp::handle_payload( $payload );
+				$stats['messages'] += $wa['messages'];
+				$stats['statuses'] += $wa['statuses'];
+				$stats['skipped']  += $wa['skipped'];
+			} else {
+				// Firma válida pero canal off tras check genérico: no-op 200.
+				++$stats['skipped'];
+			}
+
+			return new WP_REST_Response(
+				array(
+					'ok'    => true,
+					'stats' => $stats,
+				),
+				200
+			);
+		} catch ( Throwable $e ) {
+			Vitacare_Crm_Logger::error(
+				'webhook_persistence_failed',
+				array(
+					'error' => $e->getMessage(),
+				)
+			);
+			// Meta reintenta en 5xx.
+			return new WP_REST_Response( array( 'error' => 'persistence_failed' ), 500 );
+		}
+	}
+
+	/**
+	 * HMAC SHA-256 timing-safe (testable).
+	 */
+	public static function valid_signature( string $raw_body, string $header, string $app_secret ): bool {
+		if ( $app_secret === '' || $header === '' ) {
+			return false;
+		}
+		$expected = 'sha256=' . hash_hmac( 'sha256', $raw_body, $app_secret );
+		return hash_equals( $expected, $header );
 	}
 }

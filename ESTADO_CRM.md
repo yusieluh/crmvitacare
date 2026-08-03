@@ -1,14 +1,14 @@
 # ESTADO_CRM.md — Fuente de verdad del CRM VITACARE
 
 > **ESTE ARCHIVO ES LA FUENTE DE INFORMACIÓN DEL PROYECTO.**  
-> Se actualiza con **cada cambio** y **cada plan** → commit + push a GitHub.  
+> Cada cambio/plan → actualizar aquí → commit + push a GitHub.  
 > Repo: https://github.com/yusieluh/crmvitacare
 
 | Campo | Valor |
 |---|---|
 | **Sitio (raíz — NO tocar)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Versión plugin** | **0.3.0** (PR-2 REST + DB v2) |
+| **Versión plugin** | **0.4.0** (PR-3 WhatsApp inbound) |
 | **DB schema** | **v2** |
 | **Diseño** | [`docs/DESIGN.md`](./docs/DESIGN.md) |
 | **Última actualización** | 2026-08-03 |
@@ -18,8 +18,8 @@
 ## Reglas inviolables
 
 1. **`ESTADO_CRM.md` = fuente de información**
-2. CRM **solo** en **https://vitacareec.org/crm** — no tocar la raíz
-3. **No modificar** sistema instalado; solo lectura de datos WP/WC
+2. CRM **solo** en **https://vitacareec.org/crm**
+3. **No modificar** sistema instalado (`vitacare-core`, tema, Woo, etc.)
 
 ---
 
@@ -27,52 +27,57 @@
 
 | Fase / PR | Contenido | Estado |
 |---|---|---|
-| 0 | Arquitectura | ✅ |
-| 1 | Esqueleto | ✅ |
-| 1H / PR-0 | Hardening v0.1.1 | ✅ |
-| 1S / PR-1 | Settings Meta v0.2.0 | ✅ |
-| **PR-2** | **REST read + DB v2 v0.3.0** | ✅ |
-| PR-3 | WhatsApp inbound + statuses | ⏳ |
+| PR-0 | Hardening | ✅ v0.1.1 |
+| PR-1 | Settings Meta | ✅ v0.2.0 |
+| PR-2 | REST + DB v2 | ✅ v0.3.0 |
+| **PR-3** | **WhatsApp inbound + statuses** | ✅ **v0.4.0** |
 | PR-4 | WhatsApp outbound | ⏳ |
 | PR-5 | Inbox UI | ⏳ |
-| PR-6 | Media | ⏳ |
-| Post-MVP | FB/IG, email, leads, polish | ⏳ |
+| PR-6 | Media download | ⏳ |
+| Post-MVP | FB/IG, email, leads… | ⏳ |
 
 ---
 
-## PR-2 entregado (v0.3.0)
+## PR-3 entregado (v0.4.0)
 
-### DB v2
+### Webhook `POST /wp-json/vitacare-crm/v1/webhooks/meta`
 
-- **conversations:** `unread_count`, `updated_at`, `meta`; UNIQUE `(channel, external_contact_id)`; índices `assigned_to`, `last_message_at`, `status_last_msg`
-- **messages:** `message_type`, `media_mime`, `delivery_status`; UNIQUE `external_message_id`
-- Upgrader idempotente `1 → 2` en `plugins_loaded` (sin re-activar)
+1. Fail-closed: flag off / secret vacío / firma inválida → **403**
+2. HMAC `X-Hub-Signature-256` (`Vitacare_Crm_Webhook::valid_signature`)
+3. JSON inválido → **200** sin writes
+4. Payload WA → `Vitacare_Crm_Channel_Whatsapp::handle_payload`
+5. Error de persistencia → **500** (Meta reintenta)
 
-### REST (`vitacare-crm/v1`) — requiere login + `vitacare_crm_access`
+### Mensajes
 
-| Método | Ruta | Notas |
-|---|---|---|
-| GET | `/conversations` | `channel`, `status` (default open), `assigned_to`, `page`, `per_page`≤50, `q` |
-| GET | `/conversations/{id}` | Detalle |
-| PATCH | `/conversations/{id}` | Solo `status`, `assigned_to`, `wp_user_id`, `lead_id` (lead si hay col v3) |
-| GET | `/conversations/{id}/messages` | `limit`≤50, `before_id` cursor |
-| GET | `/ping` | Público; incluye `db` version |
-
-Errores: `vitacare_crm_unauthorized` / `forbidden` / `not_found` / `invalid_param` (vía WP_Error status).
+| Evento | Acción |
+|---|---|
+| `messages[]` del contacto | Upsert conversación `whatsapp`+wa_id; insert mensaje `inbound`/`contact`; +unread |
+| `messages[]` desde negocio (Coexistence, `from` ≈ display_phone) | `outbound`/`staff`; contact = `to` |
+| Dedupe | UNIQUE `external_message_id` (wamid) |
+| `statuses[]` | Update `delivery_status` (sent/delivered/read/failed); si no hay fila → log + no fantasma |
+| Tipos | text, image, audio, video, document, interactive, etc. (body texto o placeholder); media id como `meta:{id}` hasta PR-6 |
 
 ### Archivos nuevos
 
-- `includes/class-vitacare-crm-db.php`
-- `includes/class-vitacare-crm-conversations-repo.php`
-- `includes/class-vitacare-crm-messages-repo.php`
+- `includes/class-vitacare-crm-channel-whatsapp.php`
+- `includes/class-vitacare-crm-logger.php` (uploads/vitacare-crm/logs + deny)
+- `tests/test-webhook-hmac.php` — `php tests/test-webhook-hmac.php`
+
+### Requisitos ops para mensajes reales
+
+1. CRM VITACARE (admin): App Secret, Verify Token, flag WhatsApp ON  
+2. Meta webhook URL: `https://vitacareec.org/wp-json/vitacare-crm/v1/webhooks/meta`  
+3. Pretty permalinks ON  
+4. Suscribir campo `messages`
 
 ---
 
 ## Siguiente paso
 
-1. **PR-3:** ingesta WhatsApp en webhook (inbound + `message_status` → `delivery_status`) sobre DB v2.
-2. App Meta + flag WhatsApp + secrets (PR-1).
-3. Probar: `GET …/conversations` con cookie/nonce admin; sin auth → 401.
+1. **PR-4:** envío saliente desde CRM (Graph API + POST messages).
+2. Con App Meta: verificar challenge GET y un mensaje de prueba inbound.
+3. **PR-5:** UI bandeja que consuma la API.
 
 ---
 
@@ -80,8 +85,7 @@ Errores: `vitacare_crm_unauthorized` / `forbidden` / `not_found` / `invalid_para
 
 | Fecha | Qué | Ref |
 |---|---|---|
-| 2026-08-03 | Esqueleto Fase 1 | `509fa94` |
-| 2026-08-03 | Docs + fuente de verdad | `8d1a2ce`…`5ba672e` |
 | 2026-08-03 | PR-0 hardening v0.1.1 | `475c4a9` |
 | 2026-08-03 | PR-1 settings v0.2.0 | `ad74f50` |
-| 2026-08-03 | **PR-2 REST + DB v2 v0.3.0** | este update |
+| 2026-08-03 | PR-2 REST+DB v2 v0.3.0 | `bf9d6f6` |
+| 2026-08-03 | **PR-3 WhatsApp inbound v0.4.0** | este update |

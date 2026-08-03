@@ -55,7 +55,7 @@ $total_open = array_sum( $open_by_channel );
 			<p>
 				<?php
 				echo esc_html__(
-					'API de conversaciones lista (lectura + PATCH). WhatsApp inbound se conecta en la siguiente fase (PR-3).',
+					'WhatsApp inbound activo vía webhook (PR-3). Envío desde el panel: PR-4. Bandeja UI: PR-5.',
 					'vitacare-crm'
 				);
 				?>

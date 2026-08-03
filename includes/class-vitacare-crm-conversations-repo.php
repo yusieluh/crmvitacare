@@ -232,6 +232,155 @@ final class Vitacare_Crm_Conversations_Repo {
 	}
 
 	/**
+	 * Upsert conversación WhatsApp por contact wa_id (UNIQUE channel+external).
+	 *
+	 * @param array<string, mixed> $meta_extra
+	 */
+	public static function upsert_whatsapp_contact(
+		string $external_contact_id,
+		?string $contact_name,
+		?string $contact_phone,
+		array $meta_extra = array()
+	): int {
+		global $wpdb;
+		$table  = Vitacare_Crm_Db::conversations_table();
+		$now    = current_time( 'mysql' );
+		$channel = 'whatsapp';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$existing = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT id, meta, contact_name, contact_phone FROM {$table} WHERE channel = %s AND external_contact_id = %s LIMIT 1",
+				$channel,
+				$external_contact_id
+			)
+		);
+
+		if ( $existing ) {
+			$update = array();
+			$formats = array();
+			if ( $contact_name && ( empty( $existing->contact_name ) || $existing->contact_name !== $contact_name ) ) {
+				$update['contact_name'] = $contact_name;
+				$formats[]              = '%s';
+			}
+			if ( $contact_phone && empty( $existing->contact_phone ) ) {
+				$update['contact_phone'] = $contact_phone;
+				$formats[]               = '%s';
+			}
+			if ( Vitacare_Crm_Db::column_exists( $table, 'meta' ) && ! empty( $meta_extra ) ) {
+				$prev = array();
+				if ( ! empty( $existing->meta ) ) {
+					$decoded = json_decode( (string) $existing->meta, true );
+					if ( is_array( $decoded ) ) {
+						$prev = $decoded;
+					}
+				}
+				$update['meta'] = wp_json_encode( array_merge( $prev, $meta_extra ) );
+				$formats[]      = '%s';
+			}
+			if ( Vitacare_Crm_Db::column_exists( $table, 'updated_at' ) ) {
+				$update['updated_at'] = $now;
+				$formats[]            = '%s';
+			}
+			if ( ! empty( $update ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->update( $table, $update, array( 'id' => (int) $existing->id ), $formats, array( '%d' ) );
+			}
+			return (int) $existing->id;
+		}
+
+		$row = array(
+			'channel'             => $channel,
+			'external_contact_id' => $external_contact_id,
+			'contact_name'        => $contact_name,
+			'contact_phone'       => $contact_phone,
+			'status'              => 'open',
+			'created_at'          => $now,
+			'last_message_at'     => $now,
+		);
+		$formats = array( '%s', '%s', '%s', '%s', '%s', '%s', '%s' );
+
+		if ( Vitacare_Crm_Db::column_exists( $table, 'unread_count' ) ) {
+			$row['unread_count'] = 0;
+			$formats[]           = '%d';
+		}
+		if ( Vitacare_Crm_Db::column_exists( $table, 'updated_at' ) ) {
+			$row['updated_at'] = $now;
+			$formats[]         = '%s';
+		}
+		if ( Vitacare_Crm_Db::column_exists( $table, 'meta' ) ) {
+			$row['meta'] = ! empty( $meta_extra ) ? wp_json_encode( $meta_extra ) : null;
+			$formats[]   = '%s';
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$ok = $wpdb->insert( $table, $row, $formats );
+		if ( false === $ok ) {
+			// Carrera UNIQUE: re-leer.
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$again = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT id FROM {$table} WHERE channel = %s AND external_contact_id = %s LIMIT 1",
+					$channel,
+					$external_contact_id
+				)
+			);
+			if ( $again ) {
+				return (int) $again;
+			}
+			Vitacare_Crm_Logger::error( 'conversation_insert_failed', array( 'db' => $wpdb->last_error ) );
+			return 0;
+		}
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Actualiza last_message_at y unread_count tras un mensaje nuevo.
+	 */
+	public static function touch_after_message( int $conversation_id, string $created_at, bool $inbound ): void {
+		global $wpdb;
+		$table = Vitacare_Crm_Db::conversations_table();
+
+		$set = array(
+			'last_message_at' => $created_at,
+		);
+		$formats = array( '%s' );
+
+		if ( Vitacare_Crm_Db::column_exists( $table, 'updated_at' ) ) {
+			$set['updated_at'] = current_time( 'mysql' );
+			$formats[]         = '%s';
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $table, $set, array( 'id' => $conversation_id ), $formats, array( '%d' ) );
+
+		if ( $inbound && Vitacare_Crm_Db::column_exists( $table, 'unread_count' ) ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table} SET unread_count = unread_count + 1 WHERE id = %d",
+					$conversation_id
+				)
+			);
+		}
+
+		// Reabrir si estaba cerrada y llega inbound.
+		if ( $inbound ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->update(
+				$table,
+				array( 'status' => 'open' ),
+				array(
+					'id'     => $conversation_id,
+					'status' => 'closed',
+				),
+				array( '%s' ),
+				array( '%d', '%s' )
+			);
+		}
+	}
+
+	/**
 	 * @param object $row DB row.
 	 * @return array<string, mixed>
 	 */
