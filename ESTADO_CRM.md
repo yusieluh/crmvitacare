@@ -7,7 +7,7 @@
 - Repositorio independiente para el plugin **VITACARE CRM** (bandeja de conversaciones WhatsApp/Facebook/Instagram/correo + gestión de leads).
 - Se instala como **plugin nuevo** (`vitacare-crm`) junto a `vitacare-core` y `vitacare-theme`, sin modificar ninguno de los dos.
 - Al activarse, crea automáticamente la página **`/crm/`** y reutiliza el `header.php`/`footer.php` del tema activo (vía `template_include`), heredando la identidad visual VITACARE sin duplicar CSS del tema.
-- Producción real del sistema principal: `https://web.vitacareec.org/` (no tocar desde este repo). Este plugin se instalará ahí una vez probado.
+- Producción real del sistema principal: `https://vitacareec.org/` (no tocar desde este repo). Este plugin se instalará ahí una vez probado.
 
 ## 1. Decisiones ya tomadas (no reabrir sin razón nueva)
 
