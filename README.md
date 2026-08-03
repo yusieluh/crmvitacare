@@ -10,17 +10,21 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja de conversaciones (WhatsA
 | **Diseño completo** | [`docs/DESIGN.md`](./docs/DESIGN.md) |
 | **Proceso de documentación** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
 
-> **Leer primero:** [`ESTADO_CRM.md`](./ESTADO_CRM.md).
+> **Fuente de información del proyecto:** [`ESTADO_CRM.md`](./ESTADO_CRM.md) — se actualiza con **cada cambio** y **cada plan**.
 
-## Integración con el sistema existente
+## Integración (límites fijos)
 
-- Se instala en el **WordPress del dominio** como plugin **junto a** `vitacare-core` y `vitacare-theme`.
-- **No modifica** el sistema ya creado: solo **obtiene información** (lectura) de usuarios, pedidos WooCommerce, etc.
-- Crea su página (`/crm`), tablas propias (`wp_vitacare_crm_*`) y reutiliza el tema solo para header/footer/estilos.
+- CRM **solo** en **https://vitacareec.org/crm**
+- **No se toca** la raíz del sitio https://vitacareec.org/
+- **No se modifica** el sistema ya instalado (`vitacare-core`, tema, WooCommerce, etc.)
+- Solo **lectura** de datos del ecosistema; tablas propias del plugin
+- Plugin instalado **junto a** lo existente, sin parchearlo
 
 ## Documentación y respaldo
 
-Todo el plan y cada cambio se documentan en este repositorio y se suben a **GitHub al completar cada tarea**. Ver [`docs/PROCESS.md`](./docs/PROCESS.md).
+- Fuente de información: **`ESTADO_CRM.md`**
+- Cada tarea: actualizar ESTADO → commit → push a GitHub  
+- Detalle: [`docs/PROCESS.md`](./docs/PROCESS.md)
 
 ## Estructura
 

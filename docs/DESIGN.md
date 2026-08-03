@@ -6,12 +6,13 @@
 | **Autor** | _Pendiente de asignación_ (equipo ingeniería / Yusiel) |
 | **Fecha** | 2026-08-03 |
 | **Última revisión** | 2026-08-03 (post design review) |
-| **Estado** | Draft (revisado) — **fuente de verdad en GitHub** |
+| **Estado** | Draft (revisado) |
 | **Repo** | https://github.com/yusieluh/crmvitacare |
+| **Fuente de información del proyecto** | **`ESTADO_CRM.md`** (estado, plan, decisiones, changelog) — este DESIGN es detalle técnico |
 | **Plugin** | `vitacare-crm` v0.1.0 (Fase 1 en código) |
-| **URL CRM (producción)** | https://vitacareec.org/crm |
-| **Integración** | Plugin en WP del dominio; **no modifica** el sistema existente; solo **lectura** de datos |
-| **Documentación** | Cada tarea actualiza `ESTADO_CRM.md` + push a GitHub (`docs/PROCESS.md`) |
+| **URL CRM (única)** | **https://vitacareec.org/crm** — no tocar raíz https://vitacareec.org/ |
+| **Integración** | Plugin en WP; **no modifica** sistema instalado; solo **lectura** de datos |
+| **Documentación** | Cada cambio/plan actualiza `ESTADO_CRM.md` + push GitHub |
 | **MVP shippable** | PR-0 … PR-6 (WhatsApp + bandeja + media) |
 
 ---
