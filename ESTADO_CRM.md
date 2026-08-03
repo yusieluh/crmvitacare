@@ -8,7 +8,7 @@
 |---|---|
 | **Sitio (raíz — NO tocar)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Versión plugin** | **0.4.0** (PR-3 WhatsApp inbound) |
+| **Versión plugin** | **0.5.0** (PR-4 WhatsApp outbound) |
 | **DB schema** | **v2** |
 | **Diseño** | [`docs/DESIGN.md`](./docs/DESIGN.md) |
 | **Última actualización** | 2026-08-03 |
@@ -19,65 +19,67 @@
 
 1. **`ESTADO_CRM.md` = fuente de información**
 2. CRM **solo** en **https://vitacareec.org/crm**
-3. **No modificar** sistema instalado (`vitacare-core`, tema, Woo, etc.)
+3. **No modificar** sistema instalado
 
 ---
 
 ## Plan de fases
 
-| Fase / PR | Contenido | Estado |
+| PR | Contenido | Estado |
 |---|---|---|
-| PR-0 | Hardening | ✅ v0.1.1 |
-| PR-1 | Settings Meta | ✅ v0.2.0 |
-| PR-2 | REST + DB v2 | ✅ v0.3.0 |
-| **PR-3** | **WhatsApp inbound + statuses** | ✅ **v0.4.0** |
-| PR-4 | WhatsApp outbound | ⏳ |
-| PR-5 | Inbox UI | ⏳ |
-| PR-6 | Media download | ⏳ |
-| Post-MVP | FB/IG, email, leads… | ⏳ |
+| 0 | Hardening | ✅ |
+| 1 | Settings Meta | ✅ |
+| 2 | REST + DB v2 | ✅ |
+| 3 | WhatsApp inbound | ✅ v0.4.0 |
+| **4** | **WhatsApp outbound** | ✅ **v0.5.0** |
+| 5 | Inbox UI | ⏳ |
+| 6 | Media | ⏳ |
 
 ---
 
-## PR-3 entregado (v0.4.0)
+## PR-4 entregado (v0.5.0)
 
-### Webhook `POST /wp-json/vitacare-crm/v1/webhooks/meta`
+### `POST /wp-json/vitacare-crm/v1/conversations/{id}/messages`
 
-1. Fail-closed: flag off / secret vacío / firma inválida → **403**
-2. HMAC `X-Hub-Signature-256` (`Vitacare_Crm_Webhook::valid_signature`)
-3. JSON inválido → **200** sin writes
-4. Payload WA → `Vitacare_Crm_Channel_Whatsapp::handle_payload`
-5. Error de persistencia → **500** (Meta reintenta)
+```json
+{ "body": "Hola, ¿en qué te ayudo?" }
+```
 
-### Mensajes
+- Auth: login + `vitacare_crm_access`
+- Solo canal `whatsapp`; body max 4096; sin media (PR-6)
+- Graph: `POST /{phone-number-id}/messages` timeout 15s, UA `VITACARE-CRM/{ver}`
+- Persiste mensaje `outbound`/`staff` con wamid; dedupe si webhook llegó antes
+- Cupo soft mensual (option `vitacare_crm_outbound_count_YYYY_MM`) — log + `soft_limit_warning`
 
-| Evento | Acción |
-|---|---|
-| `messages[]` del contacto | Upsert conversación `whatsapp`+wa_id; insert mensaje `inbound`/`contact`; +unread |
-| `messages[]` desde negocio (Coexistence, `from` ≈ display_phone) | `outbound`/`staff`; contact = `to` |
-| Dedupe | UNIQUE `external_message_id` (wamid) |
-| `statuses[]` | Update `delivery_status` (sent/delivered/read/failed); si no hay fila → log + no fantasma |
-| Tipos | text, image, audio, video, document, interactive, etc. (body texto o placeholder); media id como `meta:{id}` hasta PR-6 |
+### Errores
 
-### Archivos nuevos
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `vitacare_crm_outside_window` | 409 | Fuera de ventana 24h (sin templates HSM en MVP) |
+| `vitacare_crm_rate_limited` | 429 | Rate limit Meta (+ cola AS si existe) |
+| `vitacare_crm_graph_error` | 502 | Token, red, Graph genérico |
+| `vitacare_crm_invalid_param` | 400 | Body vacío / canal incorrecto |
+| `vitacare_crm_not_found` | 404 | Conversación inexistente |
 
-- `includes/class-vitacare-crm-channel-whatsapp.php`
-- `includes/class-vitacare-crm-logger.php` (uploads/vitacare-crm/logs + deny)
-- `tests/test-webhook-hmac.php` — `php tests/test-webhook-hmac.php`
+Token 401/403 Graph → option `vitacare_crm_graph_token_health=invalid` (visible en `/ping` como `graph_token_health`).
 
-### Requisitos ops para mensajes reales
+### Archivo nuevo
 
-1. CRM VITACARE (admin): App Secret, Verify Token, flag WhatsApp ON  
-2. Meta webhook URL: `https://vitacareec.org/wp-json/vitacare-crm/v1/webhooks/meta`  
-3. Pretty permalinks ON  
-4. Suscribir campo `messages`
+- `includes/class-vitacare-crm-graph.php`
+
+### Requisitos para enviar
+
+1. Flag WhatsApp ON  
+2. Access Token + Phone Number ID  
+3. Conversación existente con `external_contact_id` (wa_id)  
+4. Cliente dentro de ventana 24h (habla primero)
 
 ---
 
 ## Siguiente paso
 
-1. **PR-4:** envío saliente desde CRM (Graph API + POST messages).
-2. Con App Meta: verificar challenge GET y un mensaje de prueba inbound.
-3. **PR-5:** UI bandeja que consuma la API.
+1. **PR-5:** UI bandeja en `/crm` (lista + hilo + compositor que llama a esta API).
+2. Probar envío real con un hilo inbound previo.
 
 ---
 
@@ -85,7 +87,6 @@
 
 | Fecha | Qué | Ref |
 |---|---|---|
-| 2026-08-03 | PR-0 hardening v0.1.1 | `475c4a9` |
-| 2026-08-03 | PR-1 settings v0.2.0 | `ad74f50` |
-| 2026-08-03 | PR-2 REST+DB v2 v0.3.0 | `bf9d6f6` |
-| 2026-08-03 | **PR-3 WhatsApp inbound v0.4.0** | este update |
+| 2026-08-03 | PR-0…PR-2 | `475c4a9`…`bf9d6f6` |
+| 2026-08-03 | PR-3 inbound v0.4.0 | `0c6d51f` |
+| 2026-08-03 | **PR-4 outbound v0.5.0** | este update |

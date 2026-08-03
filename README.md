@@ -44,8 +44,8 @@ vitacare-crm/
 
 ## Estado
 
-- Plugin **v0.4.0**: settings Meta + API conversaciones + **WhatsApp inbound (webhook)**.
-- **Siguiente:** PR-4 outbound; PR-5 UI bandeja; App Meta en producción.
+- Plugin **v0.5.0**: WhatsApp **recibir + enviar** por API.
+- **Siguiente:** PR-5 UI bandeja en `/crm`.
 
 Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
 
@@ -54,6 +54,7 @@ Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
 ```
 GET  /wp-json/vitacare-crm/v1/conversations
 GET  /wp-json/vitacare-crm/v1/conversations/{id}/messages
+POST /wp-json/vitacare-crm/v1/conversations/{id}/messages   {"body":"…"}
 PATCH /wp-json/vitacare-crm/v1/conversations/{id}
 ```
 

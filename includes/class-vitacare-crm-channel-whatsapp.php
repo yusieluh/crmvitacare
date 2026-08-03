@@ -331,6 +331,203 @@ final class Vitacare_Crm_Channel_Whatsapp {
 		return in_array( $type, $allowed, true ) ? $type : 'other';
 	}
 
+	/**
+	 * Envía texto por Cloud API y persiste el mensaje outbound (PR-4).
+	 *
+	 * @return array<string, mixed>|WP_Error mensaje formateado o error.
+	 */
+	public static function send_text( int $conversation_id, string $body ) {
+		if ( ! Vitacare_Crm_Settings::flag( 'whatsapp' ) ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_forbidden',
+				__( 'El canal WhatsApp está desactivado en ajustes.', 'vitacare-crm' ),
+				403
+			);
+		}
+
+		$body = trim( $body );
+		if ( $body === '' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'El mensaje no puede estar vacío.', 'vitacare-crm' ),
+				400
+			);
+		}
+		if ( function_exists( 'mb_strlen' ) ? mb_strlen( $body ) > 4096 : strlen( $body ) > 4096 ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'El mensaje supera el máximo de 4096 caracteres.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$conv = Vitacare_Crm_Conversations_Repo::get( $conversation_id );
+		if ( null === $conv ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Conversación no encontrada.', 'vitacare-crm' ), 404 );
+		}
+		if ( ( $conv['channel'] ?? '' ) !== 'whatsapp' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'Solo se puede enviar por WhatsApp en esta versión.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$to = self::digits( (string) ( $conv['external_contact_id'] ?? '' ) );
+		if ( $to === '' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'La conversación no tiene destinatario WhatsApp.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$phone_id = Vitacare_Crm_Settings::get( 'phone_number_id' );
+		$token    = Vitacare_Crm_Settings::get( 'access_token' );
+		if ( $phone_id === '' || $token === '' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_graph_error',
+				__( 'Faltan Access Token o Phone Number ID en ajustes CRM.', 'vitacare-crm' ),
+				502
+			);
+		}
+
+		// Cupo soft mensual (no bloquea; se reporta en meta de respuesta vía log).
+		$month_key = 'vitacare_crm_outbound_count_' . gmdate( 'Y_m' );
+		$count     = (int) get_option( $month_key, 0 );
+		$limit     = Vitacare_Crm_Settings::outbound_soft_limit();
+		if ( $count >= $limit ) {
+			Vitacare_Crm_Logger::info(
+				'outbound_soft_limit_reached',
+				array(
+					'count' => $count,
+					'limit' => $limit,
+				)
+			);
+		}
+
+		$payload = array(
+			'messaging_product' => 'whatsapp',
+			'recipient_type'    => 'individual',
+			'to'                => $to,
+			'type'              => 'text',
+			'text'              => array(
+				'preview_url' => false,
+				'body'        => $body,
+			),
+		);
+
+		$result = Vitacare_Crm_Graph::post( $phone_id . '/messages', $payload );
+
+		if ( ! $result['ok'] ) {
+			if ( Vitacare_Crm_Graph::is_outside_window( $result['error_code'], $result['error_message'] ) ) {
+				return Vitacare_Crm_Db::error(
+					'vitacare_crm_outside_window',
+					__( 'Fuera de la ventana de 24 horas. En el MVP no se envían plantillas HSM; el cliente debe escribir primero.', 'vitacare-crm' ),
+					409
+				);
+			}
+			if ( Vitacare_Crm_Graph::is_rate_limited( $result['code'], $result['error_code'] ) ) {
+				// Reintento diferido si Action Scheduler está disponible (WooCommerce).
+				if ( function_exists( 'as_enqueue_async_action' ) ) {
+					as_enqueue_async_action(
+						'vitacare_crm_retry_outbound_text',
+						array(
+							'conversation_id' => $conversation_id,
+							'body'            => $body,
+						),
+						'vitacare-crm'
+					);
+				}
+				return Vitacare_Crm_Db::error(
+					'vitacare_crm_rate_limited',
+					__( 'Límite de envío de Meta. Intenta de nuevo en unos minutos.', 'vitacare-crm' ),
+					429
+				);
+			}
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_graph_error',
+				__( 'No se pudo enviar el mensaje por WhatsApp. Revisa el token y la configuración Meta.', 'vitacare-crm' ),
+				502
+			);
+		}
+
+		$wamid = '';
+		if ( isset( $result['data']['messages'][0]['id'] ) ) {
+			$wamid = (string) $result['data']['messages'][0]['id'];
+		}
+		if ( $wamid === '' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_graph_error',
+				__( 'Meta no devolvió ID de mensaje.', 'vitacare-crm' ),
+				502
+			);
+		}
+
+		// Dedupe si el webhook Coexistence llegó primero.
+		$existing = Vitacare_Crm_Messages_Repo::find_by_external_id( $wamid );
+		if ( $existing ) {
+			return Vitacare_Crm_Messages_Repo::format( $existing );
+		}
+
+		$created = current_time( 'mysql' );
+		$insert  = Vitacare_Crm_Messages_Repo::insert_message(
+			array(
+				'conversation_id'     => $conversation_id,
+				'direction'           => 'outbound',
+				'sender_type'         => 'staff',
+				'message_type'        => 'text',
+				'body'                => $body,
+				'external_message_id' => $wamid,
+				'delivery_status'     => 'sent',
+				'created_at'          => $created,
+			)
+		);
+
+		if ( false === $insert ) {
+			$again = Vitacare_Crm_Messages_Repo::find_by_external_id( $wamid );
+			if ( $again ) {
+				return Vitacare_Crm_Messages_Repo::format( $again );
+			}
+		}
+		if ( ! is_int( $insert ) || $insert <= 0 ) {
+			// Graph ya envió; persistencia falló — log crítico pero devolver shape mínimo.
+			Vitacare_Crm_Logger::error( 'outbound_persist_failed', array( 'wamid' => $wamid ) );
+			return array(
+				'id'                  => 0,
+				'conversation_id'     => $conversation_id,
+				'direction'           => 'outbound',
+				'sender_type'         => 'staff',
+				'message_type'        => 'text',
+				'body'                => $body,
+				'media_url'           => null,
+				'media_mime'          => null,
+				'delivery_status'     => 'sent',
+				'external_message_id' => $wamid,
+				'created_at'          => Vitacare_Crm_Db::format_datetime( $created ),
+				'warning'             => 'persisted_partial',
+			);
+		}
+
+		Vitacare_Crm_Conversations_Repo::touch_after_message( $conversation_id, $created, false );
+		update_option( $month_key, $count + 1, false );
+
+		$row = Vitacare_Crm_Messages_Repo::find_by_external_id( $wamid );
+		if ( $row ) {
+			$formatted = Vitacare_Crm_Messages_Repo::format( $row );
+			if ( $count + 1 >= $limit ) {
+				$formatted['soft_limit_warning'] = true;
+			}
+			return $formatted;
+		}
+
+		return Vitacare_Crm_Db::error(
+			'vitacare_crm_graph_error',
+			__( 'Mensaje enviado pero no se pudo leer de la base de datos.', 'vitacare-crm' ),
+			500
+		);
+	}
+
 	private static function digits( string $s ): string {
 		return preg_replace( '/\D+/', '', $s ) ?? '';
 	}

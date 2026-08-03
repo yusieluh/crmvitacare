@@ -55,7 +55,7 @@ $total_open = array_sum( $open_by_channel );
 			<p>
 				<?php
 				echo esc_html__(
-					'WhatsApp inbound activo vía webhook (PR-3). Envío desde el panel: PR-4. Bandeja UI: PR-5.',
+					'WhatsApp bidireccional listo (recibir + enviar por API). Próximo: bandeja visual (PR-5).',
 					'vitacare-crm'
 				);
 				?>

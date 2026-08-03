@@ -56,12 +56,19 @@ final class Vitacare_Crm_Rest {
 			'vitacare-crm/v1',
 			'/conversations/(?P<id>\d+)/messages',
 			array(
-				'methods'             => 'GET',
-				'callback'            => array( __CLASS__, 'list_messages' ),
-				'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
-				'args'                => array(
-					'limit'     => array( 'type' => 'integer', 'required' => false, 'default' => 30 ),
-					'before_id' => array( 'type' => 'integer', 'required' => false ),
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'list_messages' ),
+					'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+					'args'                => array(
+						'limit'     => array( 'type' => 'integer', 'required' => false, 'default' => 30 ),
+						'before_id' => array( 'type' => 'integer', 'required' => false ),
+					),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( __CLASS__, 'post_message' ),
+					'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
 				),
 			)
 		);
@@ -81,6 +88,12 @@ final class Vitacare_Crm_Rest {
 			$data['whatsapp_flag'] = Vitacare_Crm_Settings::flag( 'whatsapp' );
 			$data['webhook_ready'] = Vitacare_Crm_Settings::whatsapp_webhook_ready();
 			$data['graph_version'] = Vitacare_Crm_Settings::graph_version();
+			$data['send_ready']   = Vitacare_Crm_Settings::flag( 'whatsapp' )
+				&& Vitacare_Crm_Settings::get( 'access_token' ) !== ''
+				&& Vitacare_Crm_Settings::get( 'phone_number_id' ) !== '';
+		}
+		if ( class_exists( 'Vitacare_Crm_Graph' ) ) {
+			$data['graph_token_health'] = Vitacare_Crm_Graph::token_health();
 		}
 
 		return new WP_REST_Response( $data, 200 );
@@ -153,5 +166,52 @@ final class Vitacare_Crm_Rest {
 			return $result;
 		}
 		return new WP_REST_Response( $result, 200 );
+	}
+
+	/**
+	 * POST /conversations/{id}/messages — envío saliente WhatsApp (PR-4).
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function post_message( WP_REST_Request $request ) {
+		$id   = (int) $request['id'];
+		$body = $request->get_json_params();
+		if ( ! is_array( $body ) ) {
+			$body = $request->get_body_params();
+		}
+		if ( ! is_array( $body ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_invalid_param', __( 'Cuerpo JSON inválido.', 'vitacare-crm' ), 400 );
+		}
+
+		// Allowlist: solo body (media en PR-6).
+		$allowed = array( 'body', 'media_attachment_id' );
+		$unknown = array_diff( array_keys( $body ), $allowed );
+		if ( ! empty( $unknown ) ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				sprintf(
+					/* translators: %s: fields */
+					__( 'Campos no permitidos: %s', 'vitacare-crm' ),
+					implode( ', ', $unknown )
+				),
+				400
+			);
+		}
+
+		if ( ! empty( $body['media_attachment_id'] ) ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'El envío de media estará disponible en una fase posterior.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$text = isset( $body['body'] ) ? (string) $body['body'] : '';
+		$result = Vitacare_Crm_Channel_Whatsapp::send_text( $id, $text );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return new WP_REST_Response( $result, 201 );
 	}
 }
