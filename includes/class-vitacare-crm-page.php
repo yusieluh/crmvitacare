@@ -119,6 +119,7 @@ final class Vitacare_Crm_Page {
 						'outsideWindow'  => __( 'Fuera de la ventana de 24 horas. El cliente debe escribir primero.', 'vitacare-crm' ),
 						'hintWa'         => __( 'Solo texto · ventana 24 h de WhatsApp', 'vitacare-crm' ),
 						'hintFb'         => __( 'Messenger · ventana 24 h · solo texto', 'vitacare-crm' ),
+						'hintEmail'      => __( 'Respuesta por Gmail · texto', 'vitacare-crm' ),
 						'hintChannel'    => __( 'Envío no disponible para este canal todavía.', 'vitacare-crm' ),
 						'fromStaff'      => __( 'CRM', 'vitacare-crm' ),
 						'fromApp'        => __( 'App', 'vitacare-crm' ),

@@ -44,8 +44,8 @@ vitacare-crm/
 
 ## Estado
 
-- Plugin **v0.9.0**: WhatsApp + **Facebook Messenger** (OAuth, Página, bandeja in/out).
-- **Siguiente:** C-5 Gmail; C-3 Instagram; PR-6 media.
+- Plugin **v1.0.0**: WhatsApp + Messenger + **Gmail** en la bandeja.
+- **Siguiente:** Instagram; TikTok; media WhatsApp.
 
 Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
 
@@ -54,9 +54,10 @@ Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
 | Menú | Uso |
 |---|---|
 | **Cuentas conectadas** | Estado de cada canal |
-| **WhatsApp (oficial)** | Checklist Coexistence |
-| **Facebook** | Conectar cuenta + elegir Página |
-| **Credenciales** | App ID / Secret Meta, flags |
+| **WhatsApp (oficial)** | Coexistence |
+| **Facebook** | OAuth + Página |
+| **Gmail** | OAuth Google + sync |
+| **Credenciales** | Meta tokens / flags |
 
 ### API rápida (autenticado)
 

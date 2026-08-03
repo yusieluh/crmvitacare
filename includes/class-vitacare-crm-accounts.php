@@ -124,15 +124,7 @@ final class Vitacare_Crm_Accounts {
 				'action_label' => '',
 				'flag'         => Vitacare_Crm_Settings::flag( 'instagram' ),
 			),
-			'gmail'     => array(
-				'name'         => 'Gmail',
-				'level'        => 'off',
-				'label'        => __( 'Pendiente', 'vitacare-crm' ),
-				'detail'       => __( 'OAuth Google · correo en bandeja (C-5).', 'vitacare-crm' ),
-				'action_url'   => '',
-				'action_label' => '',
-				'flag'         => Vitacare_Crm_Settings::flag( 'email' ),
-			),
+			'gmail'     => self::gmail_card_status(),
 			'tiktok'    => array(
 				'name'         => 'TikTok',
 				'level'        => 'off',
@@ -142,6 +134,37 @@ final class Vitacare_Crm_Accounts {
 				'action_label' => '',
 				'flag'         => false,
 			),
+		);
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private static function gmail_card_status(): array {
+		$connected = class_exists( 'Vitacare_Crm_Gmail' ) && Vitacare_Crm_Gmail::is_connected();
+		if ( $connected ) {
+			return array(
+				'name'         => 'Gmail',
+				'level'        => 'ok',
+				'label'        => __( 'Conectado', 'vitacare-crm' ),
+				'detail'       => sprintf(
+					/* translators: %s: email */
+					__( 'Buzón: %s · sync automático ~5 min', 'vitacare-crm' ),
+					Vitacare_Crm_Gmail::get_email()
+				),
+				'action_url'   => admin_url( 'admin.php?page=vitacare-crm-gmail' ),
+				'action_label' => __( 'Administrar Gmail', 'vitacare-crm' ),
+				'flag'         => true,
+			);
+		}
+		return array(
+			'name'         => 'Gmail',
+			'level'        => 'off',
+			'label'        => __( 'Pendiente', 'vitacare-crm' ),
+			'detail'       => __( 'OAuth Google · correo en bandeja CRM.', 'vitacare-crm' ),
+			'action_url'   => admin_url( 'admin.php?page=vitacare-crm-gmail' ),
+			'action_label' => __( 'Conectar Gmail', 'vitacare-crm' ),
+			'flag'         => Vitacare_Crm_Settings::flag( 'email' ),
 		);
 	}
 
