@@ -448,6 +448,16 @@ final class Vitacare_Crm_Settings {
 		<?php
 	}
 
+	/** Cifrado opcional de secretos (si VITACARE_CRM_ENCRYPTION_KEY en wp-config). */
+	public static function store_secret( string $plain ): string {
+		return self::maybe_encrypt( $plain );
+	}
+
+	/** Lectura de secreto almacenado (con o sin cifrado). */
+	public static function read_secret( string $stored ): string {
+		return self::maybe_decrypt( $stored );
+	}
+
 	private static function maybe_encrypt( string $plain ): string {
 		if ( $plain === '' || ! defined( 'VITACARE_CRM_ENCRYPTION_KEY' ) || (string) VITACARE_CRM_ENCRYPTION_KEY === '' ) {
 			return $plain;

@@ -114,17 +114,7 @@ final class Vitacare_Crm_Accounts {
 				'action_label'=> __( 'Asistente Coexistence', 'vitacare-crm' ),
 				'flag'        => Vitacare_Crm_Settings::flag( 'whatsapp' ),
 			),
-			'facebook'  => array(
-				'name'         => 'Facebook Messenger',
-				'level'        => Vitacare_Crm_Settings::flag( 'facebook' ) ? 'warn' : 'off',
-				'label'        => Vitacare_Crm_Settings::flag( 'facebook' )
-					? __( 'Flag ON — falta OAuth', 'vitacare-crm' )
-					: __( 'Pendiente', 'vitacare-crm' ),
-				'detail'       => __( 'Próximo: conectar cuenta Meta y elegir Página (C-2).', 'vitacare-crm' ),
-				'action_url'   => admin_url( 'admin.php?page=vitacare-crm-settings' ),
-				'action_label' => __( 'Ver credenciales Meta', 'vitacare-crm' ),
-				'flag'         => Vitacare_Crm_Settings::flag( 'facebook' ),
-			),
+			'facebook'  => self::facebook_card_status(),
 			'instagram' => array(
 				'name'         => 'Instagram',
 				'level'        => 'off',
@@ -152,6 +142,42 @@ final class Vitacare_Crm_Accounts {
 				'action_label' => '',
 				'flag'         => false,
 			),
+		);
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private static function facebook_card_status(): array {
+		$connected = class_exists( 'Vitacare_Crm_Facebook_Oauth' ) && Vitacare_Crm_Facebook_Oauth::is_connected();
+		if ( $connected ) {
+			$name = Vitacare_Crm_Facebook_Oauth::get_page_name();
+			return array(
+				'name'         => 'Facebook Messenger',
+				'level'        => 'ok',
+				'label'        => __( 'Página conectada', 'vitacare-crm' ),
+				'detail'       => $name !== ''
+					? sprintf(
+						/* translators: %s: page name */
+						__( 'Página: %s · OAuth OK (mensajería webhook en C-4)', 'vitacare-crm' ),
+						$name
+					)
+					: __( 'OAuth OK', 'vitacare-crm' ),
+				'action_url'   => admin_url( 'admin.php?page=vitacare-crm-facebook' ),
+				'action_label' => __( 'Administrar Facebook', 'vitacare-crm' ),
+				'flag'         => true,
+			);
+		}
+		return array(
+			'name'         => 'Facebook Messenger',
+			'level'        => Vitacare_Crm_Settings::flag( 'facebook' ) ? 'warn' : 'off',
+			'label'        => Vitacare_Crm_Settings::flag( 'facebook' )
+				? __( 'Flag ON — falta conectar', 'vitacare-crm' )
+				: __( 'Pendiente', 'vitacare-crm' ),
+			'detail'       => __( 'Conecta tu cuenta Meta y elige la Página que administras.', 'vitacare-crm' ),
+			'action_url'   => admin_url( 'admin.php?page=vitacare-crm-facebook' ),
+			'action_label' => __( 'Conectar Facebook', 'vitacare-crm' ),
+			'flag'         => Vitacare_Crm_Settings::flag( 'facebook' ),
 		);
 	}
 

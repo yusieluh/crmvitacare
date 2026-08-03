@@ -8,7 +8,7 @@
 |---|---|
 | **Sitio (raíz — NO tocar)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Versión plugin** | **0.7.0** (C-1 cuentas + C-7 Coexistence) |
+| **Versión plugin** | **0.8.0** (C-2 Facebook OAuth + Página) |
 | **DB schema** | **v2** |
 | **Última actualización** | 2026-08-03 |
 
@@ -18,64 +18,67 @@
 
 1. **`ESTADO_CRM.md` = fuente de información**
 2. CRM **solo** en **https://vitacareec.org/crm**
-3. **No modificar** el sistema instalado
-4. WhatsApp = **Cloud API + Coexistence** (D-04). **Sin** QR/dispositivo no oficial (D-04b)
+3. **No modificar** sistema instalado
+4. WhatsApp = Cloud API + Coexistence; **sin** QR no oficial
+5. Canales sociales = **OAuth oficial** cuando aplique
 
 ---
 
-## Entrega C-1 + C-7 (v0.7.0)
+## C-2 entregado (v0.8.0) — Facebook OAuth + selector de Página
 
-### C-1 — Cuentas conectadas
+### Flujo
 
-- Menú admin **CRM VITACARE** → hub de cuentas
-- Tarjetas: WhatsApp, Facebook, Instagram, Gmail, TikTok
-- Estado: listo / en progreso / pendiente / token inválido
-- Enlaces a asistente WA y credenciales
-- Aviso de política anti-QR no oficial
+1. Credenciales: **App ID** + **App Secret** Meta  
+2. Admin → **CRM VITACARE → Facebook** → **Conectar con Facebook**  
+3. Meta pide acceso a la cuenta  
+4. CRM lista **Páginas** (`/me/accounts`)  
+5. Usuario **elige la Página** que administra  
+6. Se guarda Page ID, nombre, **page access token** (cifrado si hay `VITACARE_CRM_ENCRYPTION_KEY`)  
+7. Flag `vitacare_crm_feature_facebook` = ON  
+8. Desconectar / reconectar disponibles  
 
-### C-7 — Asistente WhatsApp Coexistence
+### Config en Meta App
 
-- Submenú **WhatsApp (oficial)**
-- Checklist 11 pasos (guardado en `vitacare_crm_coex_checklist`)
-- Estado live: webhook listo, envío Graph, salud token
-- URL webhook copiable + fallback `rest_route`
-- Enlaces Meta Developers / Business Suite
-- **No** genera QR de dispositivo vinculado
+- Producto **Facebook Login**  
+- **Valid OAuth Redirect URI:**  
+  `https://vitacareec.org/wp-admin/admin.php?page=vitacare-crm-facebook`  
+  (o el dominio real del WP admin)
 
-### Archivos
+### Scopes solicitados
 
-- `includes/class-vitacare-crm-accounts.php` (nuevo)
-- `includes/class-vitacare-crm-settings.php` (menú reordenado)
-- `vitacare-crm.php` v0.7.0
-- Enlaces desde bandeja `/crm`
+`pages_show_list`, `pages_messaging`, `pages_manage_metadata`, `pages_read_engagement`, `business_management`
+
+### Archivo
+
+- `includes/class-vitacare-crm-facebook-oauth.php`
+
+### Aún no (C-4)
+
+- Webhooks `object=page` → mensajes Messenger en la bandeja  
+- Suscripción de la Página al app webhook  
 
 ---
 
 ## Plan conectores
 
-| ID | Contenido | Estado |
-|---|---|---|
-| **C-1** | Cuentas conectadas | ✅ v0.7.0 |
-| **C-7** | Asistente Coexistence WA | ✅ v0.7.0 |
-| C-2 | Facebook OAuth + selector Página | ⏳ |
-| C-3/C-4 | Instagram + webhooks page | ⏳ |
-| C-5 | Gmail OAuth | ⏳ |
-| C-6 | TikTok OAuth / spike DM | ⏳ |
-| PR-6 | Media WA | ⏳ |
-
----
-
-## MVP mensajería (previo)
-
-PR-0…PR-5 ✅ (hardening, settings tokens, REST, WA in/out, bandeja)
+| ID | Estado |
+|---|---|
+| C-1 Cuentas | ✅ |
+| C-7 WA Coexistence UI | ✅ |
+| **C-2 Facebook OAuth + Página** | ✅ **v0.8.0** |
+| C-3 Instagram | ⏳ |
+| C-4 Webhooks Messenger/IG | ⏳ |
+| C-5 Gmail | ⏳ |
+| C-6 TikTok | ⏳ |
+| PR-6 Media WA | ⏳ |
 
 ---
 
 ## Siguiente paso
 
-1. **C-2** Facebook Login + listar/elegir Página.  
-2. Instalar **v0.7.0** y completar checklist Coexistence en admin.  
-3. C-5 Gmail.
+1. **C-4:** recibir mensajes Messenger de la Página conectada en la bandeja.  
+2. O **C-5** Gmail OAuth.  
+3. En Meta: registrar redirect URI y permisos; conectar Página en admin.
 
 ---
 
@@ -83,6 +86,5 @@ PR-0…PR-5 ✅ (hardening, settings tokens, REST, WA in/out, bandeja)
 
 | Fecha | Qué | Ref |
 |---|---|---|
-| 2026-08-03 | PR-0…PR-5 | …`8481c64` |
-| 2026-08-03 | Docs OAuth / Gmail / TikTok / política WA | `d758ba3` `4a85c17` |
-| 2026-08-03 | **C-1 + C-7 v0.7.0** | este update |
+| 2026-08-03 | PR-0…PR-5, C-1, C-7 | …`e4044e5` |
+| 2026-08-03 | **C-2 Facebook OAuth + selector Página v0.8.0** | este update |

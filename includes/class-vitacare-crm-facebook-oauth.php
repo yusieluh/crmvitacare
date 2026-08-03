@@ -1,0 +1,539 @@
+<?php
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * C-2: Facebook Login (OAuth) + selector de Página administrada.
+ * Oficial Graph API. No modifica vitacare-core ni la raíz del sitio.
+ */
+final class Vitacare_Crm_Facebook_Oauth {
+
+	public const OPTION_PAGE_ID      = 'vitacare_crm_fb_page_id';
+	public const OPTION_PAGE_NAME    = 'vitacare_crm_fb_page_name';
+	public const OPTION_PAGE_TOKEN   = 'vitacare_crm_fb_page_token';
+	public const OPTION_USER_TOKEN   = 'vitacare_crm_fb_user_token';
+	public const OPTION_CONNECTED_AT = 'vitacare_crm_fb_connected_at';
+	public const OPTION_PAGES_CACHE  = 'vitacare_crm_fb_pages_cache';
+	public const TRANSIENT_STATE     = 'vitacare_crm_fb_oauth_state';
+
+	/** Scopes mínimos para listar páginas y mensajería. */
+	public const SCOPES = 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,business_management';
+
+	public static function init(): void {
+		add_action( 'admin_menu', array( __CLASS__, 'register_menu' ), 25 );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_handle_oauth_return' ), 1 );
+	}
+
+	public static function register_menu(): void {
+		add_submenu_page(
+			'vitacare-crm-accounts',
+			__( 'Facebook', 'vitacare-crm' ),
+			__( 'Facebook', 'vitacare-crm' ),
+			'manage_options',
+			'vitacare-crm-facebook',
+			array( __CLASS__, 'render_page' )
+		);
+	}
+
+	public static function redirect_uri(): string {
+		return admin_url( 'admin.php?page=vitacare-crm-facebook' );
+	}
+
+	public static function is_connected(): bool {
+		return self::get_page_id() !== '' && self::get_page_token() !== '';
+	}
+
+	public static function get_page_id(): string {
+		return (string) get_option( self::OPTION_PAGE_ID, '' );
+	}
+
+	public static function get_page_name(): string {
+		return (string) get_option( self::OPTION_PAGE_NAME, '' );
+	}
+
+	public static function get_page_token(): string {
+		$raw = (string) get_option( self::OPTION_PAGE_TOKEN, '' );
+		return Vitacare_Crm_Settings::read_secret( $raw );
+	}
+
+	/**
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function get_pages_cache(): array {
+		$raw = get_option( self::OPTION_PAGES_CACHE, array() );
+		return is_array( $raw ) ? $raw : array();
+	}
+
+	/**
+	 * Procesa callback OAuth (code) antes de render.
+	 */
+	public static function maybe_handle_oauth_return(): void {
+		if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+		if ( $page !== 'vitacare-crm-facebook' ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( isset( $_GET['error'] ) ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$desc = isset( $_GET['error_description'] ) ? sanitize_text_field( wp_unslash( $_GET['error_description'] ) ) : '';
+			set_transient(
+				'vitacare_crm_fb_flash',
+				array(
+					'type' => 'error',
+					'msg'  => $desc !== '' ? $desc : __( 'Facebook denegó el acceso.', 'vitacare-crm' ),
+				),
+				60
+			);
+			wp_safe_redirect( self::redirect_uri() );
+			exit;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( empty( $_GET['code'] ) ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+		$saved = (string) get_transient( self::TRANSIENT_STATE );
+		delete_transient( self::TRANSIENT_STATE );
+
+		if ( $saved === '' || ! hash_equals( $saved, $state ) ) {
+			set_transient(
+				'vitacare_crm_fb_flash',
+				array(
+					'type' => 'error',
+					'msg'  => __( 'Estado OAuth inválido. Vuelve a intentar «Conectar con Facebook».', 'vitacare-crm' ),
+				),
+				60
+			);
+			wp_safe_redirect( self::redirect_uri() );
+			exit;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$code   = sanitize_text_field( wp_unslash( $_GET['code'] ) );
+		$result = self::exchange_code( $code );
+		if ( is_wp_error( $result ) ) {
+			set_transient(
+				'vitacare_crm_fb_flash',
+				array(
+					'type' => 'error',
+					'msg'  => $result->get_error_message(),
+				),
+				60
+			);
+			wp_safe_redirect( self::redirect_uri() );
+			exit;
+		}
+
+		set_transient(
+			'vitacare_crm_fb_flash',
+			array(
+				'type' => 'success',
+				'msg'  => __( 'Cuenta Facebook autorizada. Elige la Página que administras.', 'vitacare-crm' ),
+			),
+			60
+		);
+		wp_safe_redirect( self::redirect_uri() . '&select_page=1' );
+		exit;
+	}
+
+	/**
+	 * @return true|WP_Error
+	 */
+	private static function exchange_code( string $code ) {
+		$app_id     = Vitacare_Crm_Settings::get( 'app_id' );
+		$app_secret = Vitacare_Crm_Settings::get( 'app_secret' );
+		if ( $app_id === '' || $app_secret === '' ) {
+			return new WP_Error(
+				'vitacare_crm_fb_config',
+				__( 'Faltan App ID y App Secret en Credenciales CRM (Meta).', 'vitacare-crm' )
+			);
+		}
+
+		$version = Vitacare_Crm_Settings::graph_version();
+		$token_url = add_query_arg(
+			array(
+				'client_id'     => $app_id,
+				'client_secret' => $app_secret,
+				'redirect_uri'  => self::redirect_uri(),
+				'code'          => $code,
+			),
+			'https://graph.facebook.com/' . rawurlencode( $version ) . '/oauth/access_token'
+		);
+
+		$response = wp_remote_get(
+			$token_url,
+			array(
+				'timeout' => 20,
+				'headers' => array(
+					'User-Agent' => 'VITACARE-CRM/' . VITACARE_CRM_VERSION,
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) || empty( $body['access_token'] ) ) {
+			$msg = isset( $body['error']['message'] ) ? (string) $body['error']['message'] : __( 'No se obtuvo access token.', 'vitacare-crm' );
+			return new WP_Error( 'vitacare_crm_fb_token', $msg );
+		}
+
+		$user_token = (string) $body['access_token'];
+
+		// Long-lived user token.
+		$ll_url = add_query_arg(
+			array(
+				'grant_type'        => 'fb_exchange_token',
+				'client_id'         => $app_id,
+				'client_secret'     => $app_secret,
+				'fb_exchange_token' => $user_token,
+			),
+			'https://graph.facebook.com/' . rawurlencode( $version ) . '/oauth/access_token'
+		);
+		$ll_res = wp_remote_get( $ll_url, array( 'timeout' => 20 ) );
+		if ( ! is_wp_error( $ll_res ) ) {
+			$ll_body = json_decode( (string) wp_remote_retrieve_body( $ll_res ), true );
+			if ( is_array( $ll_body ) && ! empty( $ll_body['access_token'] ) ) {
+				$user_token = (string) $ll_body['access_token'];
+			}
+		}
+
+		update_option( self::OPTION_USER_TOKEN, Vitacare_Crm_Settings::store_secret( $user_token ), false );
+
+		$pages = self::fetch_pages( $user_token );
+		if ( is_wp_error( $pages ) ) {
+			return $pages;
+		}
+		if ( empty( $pages ) ) {
+			return new WP_Error(
+				'vitacare_crm_fb_no_pages',
+				__( 'No se encontraron Páginas administradas por esta cuenta. Revisa permisos o el rol en la Página.', 'vitacare-crm' )
+			);
+		}
+
+		update_option( self::OPTION_PAGES_CACHE, $pages, false );
+		return true;
+	}
+
+	/**
+	 * @return array<int, array{id: string, name: string, access_token: string, tasks: array}>|WP_Error
+	 */
+	private static function fetch_pages( string $user_token ) {
+		$version = Vitacare_Crm_Settings::graph_version();
+		$url     = add_query_arg(
+			array(
+				'fields'       => 'id,name,access_token,tasks',
+				'limit'        => 100,
+				'access_token' => $user_token,
+			),
+			'https://graph.facebook.com/' . rawurlencode( $version ) . '/me/accounts'
+		);
+
+		$response = wp_remote_get(
+			$url,
+			array(
+				'timeout' => 20,
+				'headers' => array( 'User-Agent' => 'VITACARE-CRM/' . VITACARE_CRM_VERSION ),
+			)
+		);
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) ) {
+			return new WP_Error( 'vitacare_crm_fb_pages', __( 'Respuesta inválida al listar Páginas.', 'vitacare-crm' ) );
+		}
+		if ( isset( $body['error']['message'] ) ) {
+			return new WP_Error( 'vitacare_crm_fb_pages', (string) $body['error']['message'] );
+		}
+
+		$data = isset( $body['data'] ) && is_array( $body['data'] ) ? $body['data'] : array();
+		$out  = array();
+		foreach ( $data as $row ) {
+			if ( ! is_array( $row ) || empty( $row['id'] ) || empty( $row['access_token'] ) ) {
+				continue;
+			}
+			$out[] = array(
+				'id'           => (string) $row['id'],
+				'name'         => (string) ( $row['name'] ?? $row['id'] ),
+				'access_token' => (string) $row['access_token'],
+				'tasks'        => isset( $row['tasks'] ) && is_array( $row['tasks'] ) ? $row['tasks'] : array(),
+			);
+		}
+		return $out;
+	}
+
+	public static function start_oauth_url(): string|WP_Error {
+		$app_id = Vitacare_Crm_Settings::get( 'app_id' );
+		if ( $app_id === '' ) {
+			return new WP_Error(
+				'vitacare_crm_fb_config',
+				__( 'Configura el App ID de Meta en Credenciales antes de conectar Facebook.', 'vitacare-crm' )
+			);
+		}
+		if ( Vitacare_Crm_Settings::get( 'app_secret' ) === '' ) {
+			return new WP_Error(
+				'vitacare_crm_fb_config',
+				__( 'Configura el App Secret de Meta en Credenciales.', 'vitacare-crm' )
+			);
+		}
+
+		$state = wp_generate_password( 32, false, false );
+		set_transient( self::TRANSIENT_STATE . '_' . get_current_user_id(), $state, 600 );
+		// También clave global corta usada en maybe_handle — use user-specific:
+		set_transient( self::TRANSIENT_STATE, $state, 600 );
+
+		$version = Vitacare_Crm_Settings::graph_version();
+		return add_query_arg(
+			array(
+				'client_id'     => $app_id,
+				'redirect_uri'  => self::redirect_uri(),
+				'state'         => $state,
+				'scope'         => self::SCOPES,
+				'response_type' => 'code',
+			),
+			'https://www.facebook.com/' . rawurlencode( $version ) . '/dialog/oauth'
+		);
+	}
+
+	public static function select_page( string $page_id ): true|WP_Error {
+		$pages = self::get_pages_cache();
+		$found = null;
+		foreach ( $pages as $p ) {
+			if ( isset( $p['id'] ) && (string) $p['id'] === $page_id ) {
+				$found = $p;
+				break;
+			}
+		}
+		if ( ! $found ) {
+			// Reintentar fetch si hay user token.
+			$user_raw = (string) get_option( self::OPTION_USER_TOKEN, '' );
+			$user_tok = Vitacare_Crm_Settings::read_secret( $user_raw );
+			if ( $user_tok !== '' ) {
+				$pages = self::fetch_pages( $user_tok );
+				if ( ! is_wp_error( $pages ) ) {
+					update_option( self::OPTION_PAGES_CACHE, $pages, false );
+					foreach ( $pages as $p ) {
+						if ( (string) $p['id'] === $page_id ) {
+							$found = $p;
+							break;
+						}
+					}
+				}
+			}
+		}
+		if ( ! $found || empty( $found['access_token'] ) ) {
+			return new WP_Error( 'vitacare_crm_fb_page', __( 'Página no encontrada en la lista autorizada.', 'vitacare-crm' ) );
+		}
+
+		update_option( self::OPTION_PAGE_ID, (string) $found['id'], false );
+		update_option( self::OPTION_PAGE_NAME, (string) $found['name'], false );
+		update_option( self::OPTION_PAGE_TOKEN, Vitacare_Crm_Settings::store_secret( (string) $found['access_token'] ), false );
+		update_option( self::OPTION_CONNECTED_AT, current_time( 'mysql' ), false );
+		// Activar flag de canal Facebook.
+		update_option( 'vitacare_crm_feature_facebook', '1', false );
+		// Limpiar tokens de páginas del cache (contienen access_token).
+		$safe = array();
+		foreach ( self::get_pages_cache() as $p ) {
+			$safe[] = array(
+				'id'   => $p['id'] ?? '',
+				'name' => $p['name'] ?? '',
+			);
+		}
+		update_option( self::OPTION_PAGES_CACHE, $safe, false );
+
+		return true;
+	}
+
+	public static function disconnect(): void {
+		delete_option( self::OPTION_PAGE_ID );
+		delete_option( self::OPTION_PAGE_NAME );
+		delete_option( self::OPTION_PAGE_TOKEN );
+		delete_option( self::OPTION_USER_TOKEN );
+		delete_option( self::OPTION_CONNECTED_AT );
+		delete_option( self::OPTION_PAGES_CACHE );
+		update_option( 'vitacare_crm_feature_facebook', '', false );
+	}
+
+	public static function render_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'No tienes permiso.', 'vitacare-crm' ) );
+		}
+
+		// Acciones POST: seleccionar página / desconectar / iniciar (redirect).
+		if ( isset( $_POST['vitacare_crm_fb_nonce'] )
+			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['vitacare_crm_fb_nonce'] ) ), 'vitacare_crm_fb' )
+		) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$action = isset( $_POST['fb_action'] ) ? sanitize_key( wp_unslash( $_POST['fb_action'] ) ) : '';
+			if ( $action === 'disconnect' ) {
+				self::disconnect();
+				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Facebook desconectado.', 'vitacare-crm' ) . '</p></div>';
+			} elseif ( $action === 'select_page' ) {
+				// phpcs:ignore WordPress.Security.NonceVerification.Missing
+				$pid = isset( $_POST['page_id'] ) ? sanitize_text_field( wp_unslash( $_POST['page_id'] ) ) : '';
+				$r   = self::select_page( $pid );
+				if ( is_wp_error( $r ) ) {
+					echo '<div class="notice notice-error"><p>' . esc_html( $r->get_error_message() ) . '</p></div>';
+				} else {
+					echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Página seleccionada y canal Facebook activado.', 'vitacare-crm' ) . '</p></div>';
+				}
+			} elseif ( $action === 'connect' ) {
+				$url = self::start_oauth_url();
+				if ( is_wp_error( $url ) ) {
+					echo '<div class="notice notice-error"><p>' . esc_html( $url->get_error_message() ) . '</p></div>';
+				} else {
+					wp_safe_redirect( $url );
+					exit;
+				}
+			}
+		}
+
+		$flash = get_transient( 'vitacare_crm_fb_flash' );
+		if ( is_array( $flash ) ) {
+			delete_transient( 'vitacare_crm_fb_flash' );
+			$class = ( $flash['type'] ?? '' ) === 'error' ? 'notice-error' : 'notice-success';
+			echo '<div class="notice ' . esc_attr( $class ) . ' is-dismissible"><p>' . esc_html( (string) ( $flash['msg'] ?? '' ) ) . '</p></div>';
+		}
+
+		$connected = self::is_connected();
+		$pages     = self::get_pages_cache();
+		// ¿Hay páginas con token en cache (recién oauth)?
+		$need_select = false;
+		foreach ( $pages as $p ) {
+			if ( ! empty( $p['access_token'] ) ) {
+				$need_select = true;
+				break;
+			}
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( isset( $_GET['select_page'] ) ) {
+			$need_select = $need_select || ! empty( $pages );
+		}
+
+		$redirect = self::redirect_uri();
+		?>
+		<div class="wrap">
+			<h1><?php echo esc_html__( 'Facebook — Conectar cuenta y Página', 'vitacare-crm' ); ?></h1>
+
+			<div class="vcrm-callout" style="background:#f0f6fc;border-left:4px solid #2271b1;padding:12px 14px;margin:12px 0">
+				<p style="margin:0">
+					<?php
+					echo esc_html__(
+						'Flujo oficial: autorizas tu cuenta de Facebook/Meta y luego eliges la Página que administras. El CRM guarda el token de esa Página para Messenger (mensajería en fases siguientes).',
+						'vitacare-crm'
+					);
+					?>
+				</p>
+			</div>
+
+			<h2><?php echo esc_html__( 'Requisitos en Meta for Developers', 'vitacare-crm' ); ?></h2>
+			<ol>
+				<li><?php echo esc_html__( 'App ID y App Secret guardados en CRM → Credenciales.', 'vitacare-crm' ); ?></li>
+				<li>
+					<?php echo esc_html__( 'URI de redirección OAuth válida (Valid OAuth Redirect URIs):', 'vitacare-crm' ); ?>
+					<br /><code class="vcrm-mono"><?php echo esc_html( $redirect ); ?></code>
+				</li>
+				<li><?php echo esc_html__( 'Producto Facebook Login (o Login for Business) activado en la App.', 'vitacare-crm' ); ?></li>
+				<li><?php echo esc_html__( 'Permisos de páginas / mensajería en modo desarrollo o revisión de app según el caso.', 'vitacare-crm' ); ?></li>
+			</ol>
+
+			<?php if ( $connected ) : ?>
+				<div class="vcrm-admin-card" style="background:#fff;border:1px solid #c3c4c7;border-radius:8px;padding:16px;max-width:560px">
+					<h2 style="margin-top:0"><?php echo esc_html__( 'Conectado', 'vitacare-crm' ); ?></h2>
+					<p>
+						<strong><?php echo esc_html__( 'Página:', 'vitacare-crm' ); ?></strong>
+						<?php echo esc_html( self::get_page_name() ); ?>
+						(<code><?php echo esc_html( self::get_page_id() ); ?></code>)
+					</p>
+					<p>
+						<strong><?php echo esc_html__( 'Desde:', 'vitacare-crm' ); ?></strong>
+						<?php echo esc_html( (string) get_option( self::OPTION_CONNECTED_AT, '—' ) ); ?>
+					</p>
+					<p>
+						<span class="vcrm-status vcrm-status-ok" style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:#d5f5e3;color:#0a6b2d">
+							<?php echo esc_html__( 'Canal Facebook activado', 'vitacare-crm' ); ?>
+						</span>
+					</p>
+					<form method="post">
+						<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
+						<input type="hidden" name="fb_action" value="disconnect" />
+						<?php submit_button( __( 'Desconectar Facebook', 'vitacare-crm' ), 'delete', 'submit', false ); ?>
+					</form>
+					<form method="post" style="display:inline">
+						<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
+						<input type="hidden" name="fb_action" value="connect" />
+						<?php submit_button( __( 'Reconectar / cambiar cuenta', 'vitacare-crm' ), 'secondary', 'submit', false ); ?>
+					</form>
+				</div>
+			<?php endif; ?>
+
+			<?php if ( $need_select && ! empty( $pages ) ) : ?>
+				<h2><?php echo esc_html__( 'Selecciona la Página', 'vitacare-crm' ); ?></h2>
+				<p><?php echo esc_html__( 'Solo se listan Páginas que esta cuenta puede administrar.', 'vitacare-crm' ); ?></p>
+				<form method="post">
+					<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
+					<input type="hidden" name="fb_action" value="select_page" />
+					<table class="widefat striped" style="max-width:640px">
+						<thead>
+							<tr>
+								<th style="width:40px"></th>
+								<th><?php echo esc_html__( 'Página', 'vitacare-crm' ); ?></th>
+								<th><?php echo esc_html__( 'ID', 'vitacare-crm' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $pages as $i => $p ) : ?>
+								<tr>
+									<td>
+										<input type="radio" name="page_id" value="<?php echo esc_attr( (string) ( $p['id'] ?? '' ) ); ?>" id="fb-page-<?php echo esc_attr( (string) $i ); ?>" <?php checked( $i === 0 ); ?> required />
+									</td>
+									<td>
+										<label for="fb-page-<?php echo esc_attr( (string) $i ); ?>">
+											<?php echo esc_html( (string) ( $p['name'] ?? '' ) ); ?>
+										</label>
+									</td>
+									<td><code><?php echo esc_html( (string) ( $p['id'] ?? '' ) ); ?></code></td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+					<?php submit_button( __( 'Usar esta Página', 'vitacare-crm' ) ); ?>
+				</form>
+			<?php elseif ( ! $connected ) : ?>
+				<h2><?php echo esc_html__( 'Conectar', 'vitacare-crm' ); ?></h2>
+				<form method="post">
+					<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
+					<input type="hidden" name="fb_action" value="connect" />
+					<?php submit_button( __( 'Conectar con Facebook', 'vitacare-crm' ), 'primary' ); ?>
+				</form>
+			<?php endif; ?>
+
+			<p>
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-accounts' ) ); ?>"><?php echo esc_html__( '← Cuentas conectadas', 'vitacare-crm' ); ?></a>
+				|
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings' ) ); ?>"><?php echo esc_html__( 'Credenciales', 'vitacare-crm' ); ?></a>
+			</p>
+
+			<p class="description">
+				<?php
+				echo esc_html__(
+					'La mensajería Messenger en la bandeja (webhooks object=page) se completa en C-4. Esta entrega guarda la Página y el page access token.',
+					'vitacare-crm'
+				);
+				?>
+			</p>
+		</div>
+		<?php
+	}
+}
