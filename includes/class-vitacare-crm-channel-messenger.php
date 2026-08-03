@@ -378,6 +378,212 @@ final class Vitacare_Crm_Channel_Messenger {
 	}
 
 	/**
+	 * PR-6b: envía un adjunto ya almacenado localmente (ref `local:...`) por
+	 * Messenger. Sube el binario vía message_attachments (multipart, sin
+	 * exponer URLs propias a Meta) y lo referencia por attachment_id. Si hay
+	 * caption, se envía como mensaje de texto de seguimiento (Messenger no
+	 * soporta texto + adjunto en un solo mensaje).
+	 *
+	 * @return array<string, mixed>|WP_Error
+	 */
+	public static function send_media( int $conversation_id, string $media_ref, string $caption = '' ) {
+		if ( ! Vitacare_Crm_Settings::flag( 'facebook' ) ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_forbidden',
+				__( 'El canal Facebook está desactivado.', 'vitacare-crm' ),
+				403
+			);
+		}
+		if ( ! class_exists( 'Vitacare_Crm_Facebook_Oauth' ) || ! Vitacare_Crm_Facebook_Oauth::is_connected() ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_graph_error',
+				__( 'No hay Página de Facebook conectada. Ve a CRM → Facebook.', 'vitacare-crm' ),
+				502
+			);
+		}
+
+		$path = Vitacare_Crm_Media::resolve_path( $media_ref );
+		if ( null === $path ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'Adjunto inválido o ya no disponible. Vuelve a adjuntarlo.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$conv = Vitacare_Crm_Conversations_Repo::get( $conversation_id );
+		if ( null === $conv ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Conversación no encontrada.', 'vitacare-crm' ), 404 );
+		}
+		if ( ( $conv['channel'] ?? '' ) !== 'facebook' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'Esta conversación no es de Facebook Messenger.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$psid = (string) ( $conv['external_contact_id'] ?? '' );
+		if ( $psid === '' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'Falta PSID del contacto.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$mime       = Vitacare_Crm_Media::detect_mime_from_path( $path );
+		$bucket     = Vitacare_Crm_Media::type_bucket_for_mime( $mime );
+		$attach_type = $bucket === 'document' ? 'file' : $bucket; // Messenger no usa "document".
+		$page_token = Vitacare_Crm_Facebook_Oauth::get_page_token();
+		$version    = Vitacare_Crm_Settings::graph_version();
+		$ua         = 'VITACARE-CRM/' . VITACARE_CRM_VERSION;
+
+		// Paso 1: subir el binario como attachment de un solo uso.
+		$upload_url   = 'https://graph.facebook.com/' . rawurlencode( $version ) . '/me/message_attachments';
+		$message_json = wp_json_encode(
+			array(
+				'attachment' => array(
+					'type'    => $attach_type,
+					'payload' => array( 'is_reusable' => false ),
+				),
+			)
+		);
+		$mp = Vitacare_Crm_Media::build_multipart_body(
+			array( 'message' => (string) $message_json ),
+			'filedata',
+			$path,
+			basename( $path ),
+			$mime
+		);
+		$upload_resp = wp_remote_post(
+			$upload_url,
+			array(
+				'timeout' => 30,
+				'headers' => array_merge( $mp['headers'], array( 'Authorization' => 'Bearer ' . $page_token, 'User-Agent' => $ua ) ),
+				'body'    => $mp['body'],
+			)
+		);
+		if ( is_wp_error( $upload_resp ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_graph_error', __( 'Error de red al subir el adjunto a Messenger.', 'vitacare-crm' ), 502 );
+		}
+		$upload_code = (int) wp_remote_retrieve_response_code( $upload_resp );
+		$upload_data = json_decode( (string) wp_remote_retrieve_body( $upload_resp ), true );
+		if ( $upload_code < 200 || $upload_code >= 300 || empty( $upload_data['attachment_id'] ) ) {
+			Vitacare_Crm_Logger::error( 'messenger_media_upload_failed', array( 'http' => $upload_code ) );
+			return Vitacare_Crm_Db::error( 'vitacare_crm_graph_error', __( 'No se pudo subir el adjunto a Messenger.', 'vitacare-crm' ), 502 );
+		}
+		$attachment_id = (string) $upload_data['attachment_id'];
+
+		// Paso 2: enviar el mensaje referenciando el attachment_id.
+		$send_url  = 'https://graph.facebook.com/' . rawurlencode( $version ) . '/me/messages';
+		$send_body = array(
+			'recipient'      => array( 'id' => $psid ),
+			'messaging_type' => 'RESPONSE',
+			'message'        => array(
+				'attachment' => array(
+					'type'    => $attach_type,
+					'payload' => array( 'attachment_id' => $attachment_id ),
+				),
+			),
+		);
+		$send_resp = wp_remote_post(
+			$send_url,
+			array(
+				'timeout' => 15,
+				'headers' => array(
+					'Content-Type'  => 'application/json',
+					'Authorization' => 'Bearer ' . $page_token,
+					'User-Agent'    => $ua,
+				),
+				'body'    => wp_json_encode( $send_body ),
+			)
+		);
+		if ( is_wp_error( $send_resp ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_graph_error', __( 'Error de red al enviar el adjunto por Messenger.', 'vitacare-crm' ), 502 );
+		}
+		$send_code = (int) wp_remote_retrieve_response_code( $send_resp );
+		$send_data = json_decode( (string) wp_remote_retrieve_body( $send_resp ), true );
+		if ( $send_code < 200 || $send_code >= 300 || ! is_array( $send_data ) ) {
+			$err = is_array( $send_data ) && isset( $send_data['error']['message'] )
+				? (string) $send_data['error']['message']
+				: __( 'No se pudo enviar el adjunto por Messenger.', 'vitacare-crm' );
+			if ( is_array( $send_data ) && isset( $send_data['error']['code'] ) && (int) $send_data['error']['code'] === 10 ) {
+				return Vitacare_Crm_Db::error(
+					'vitacare_crm_outside_window',
+					__( 'Fuera de la ventana de mensajería de Messenger (24 h). El usuario debe escribir primero.', 'vitacare-crm' ),
+					409
+				);
+			}
+			Vitacare_Crm_Logger::error( 'messenger_media_send_failed', array( 'http' => $send_code ) );
+			return Vitacare_Crm_Db::error( 'vitacare_crm_graph_error', $err, 502 );
+		}
+
+		$mid = isset( $send_data['message_id'] ) ? (string) $send_data['message_id'] : '';
+		if ( $mid === '' ) {
+			$mid = 'fb_local_' . wp_generate_uuid4();
+		}
+
+		$existing = Vitacare_Crm_Messages_Repo::find_by_external_id( $mid );
+		$primary  = null;
+		if ( $existing ) {
+			$primary = Vitacare_Crm_Messages_Repo::format( $existing );
+		} else {
+			$created = current_time( 'mysql' );
+			$insert  = Vitacare_Crm_Messages_Repo::insert_message(
+				array(
+					'conversation_id'     => $conversation_id,
+					'direction'           => 'outbound',
+					'sender_type'         => 'staff',
+					'message_type'        => $bucket,
+					'body'                => null,
+					'media_url'           => $media_ref,
+					'media_mime'          => $mime,
+					'external_message_id' => $mid,
+					'delivery_status'     => 'sent',
+					'created_at'          => $created,
+				)
+			);
+			if ( is_int( $insert ) && $insert > 0 ) {
+				Vitacare_Crm_Conversations_Repo::touch_after_message( $conversation_id, $created, false );
+				$row = Vitacare_Crm_Messages_Repo::find_by_external_id( $mid );
+				$primary = $row ? Vitacare_Crm_Messages_Repo::format( $row ) : null;
+			}
+			if ( null === $primary ) {
+				$primary = array(
+					'id'                  => 0,
+					'conversation_id'     => $conversation_id,
+					'direction'           => 'outbound',
+					'sender_type'         => 'staff',
+					'message_type'        => $bucket,
+					'body'                => null,
+					'media_url'           => null,
+					'media_mime'          => $mime,
+					'delivery_status'     => 'sent',
+					'external_message_id' => $mid,
+					'created_at'          => Vitacare_Crm_Db::format_datetime( $created ),
+					'warning'             => 'persisted_partial',
+				);
+			}
+		}
+
+		// Caption opcional: Messenger no admite texto+adjunto en un mensaje;
+		// se envía como burbuja de texto aparte. Si falla, no se revierte el envío.
+		$caption = trim( $caption );
+		if ( $caption !== '' ) {
+			$text_result = self::send_text( $conversation_id, $caption );
+			if ( is_wp_error( $text_result ) ) {
+				Vitacare_Crm_Logger::error(
+					'messenger_media_caption_failed',
+					array( 'msg' => $text_result->get_error_message() )
+				);
+			}
+		}
+
+		return $primary;
+	}
+
+	/**
 	 * Suscribe la Página a la app para eventos de mensajería.
 	 */
 	public static function subscribe_page(): true|WP_Error {

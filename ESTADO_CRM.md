@@ -11,10 +11,10 @@
 | **Clone local típico** | `C:\Users\User\Documents\crmvitacare` |
 | **Sitio (raíz — NO TOCAR)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Plugin** | `vitacare-crm` **v1.2.0** |
-| **DB schema** | **v2** (`vitacare_crm_db_version`) — sin cambios de esquema en C-3/PR-6 (`media_url`/`media_mime` ya existían) |
+| **Plugin** | `vitacare-crm` **v1.3.0** |
+| **DB schema** | **v2** (`vitacare_crm_db_version`) — sin cambios de esquema en C-3/PR-6/PR-6b (`media_url`/`media_mime` ya existían) |
 | **Última actualización docs** | 2026-08-03 |
-| **Último commit de referencia** | PR-6 media (este commit) |
+| **Último commit de referencia** | PR-6b media saliente (este commit) |
 
 ---
 
@@ -44,7 +44,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 
 ---
 
-## 3. Estado actual del código (v1.2.0) — YA EN GITHUB
+## 3. Estado actual del código (v1.3.0) — YA EN GITHUB
 
 ### 3.1 Entregado y mergeado en `main`
 
@@ -62,26 +62,34 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 | C-4 Messenger | 0.9.0 | In/out Facebook Page en bandeja |
 | C-5 Gmail | 1.0.0 | OAuth Google, sync INBOX, envío desde bandeja |
 | C-3 Instagram | 1.1.0 | Cuenta profesional vinculada a la Página, webhook `object=instagram`, in/out Graph, bandeja |
-| **PR-6 Media** | **1.2.0** | Descarga opaca de adjuntos WA/Messenger/IG, servidor propio con cap, imagen/audio/video/documento en la bandeja |
+| PR-6 Media | 1.2.0 | Descarga opaca de adjuntos WA/Messenger/IG, servidor propio con cap, imagen/audio/video/documento en la bandeja |
+| **PR-6b Media saliente** | **1.3.0** | Adjuntar archivo al responder por WhatsApp/Messenger: subida multipart directa a Graph (sin URL pública), botón de clip en la bandeja |
 
 ### 3.2 Canales en la bandeja
 
-| Canal | Inbound | Outbound | Media | Cómo se conecta |
-|---|---|---|---|---|
-| WhatsApp | ✅ webhook | ✅ Graph | ✅ descarga + sirve con cap | Credenciales + Coexistence (asistente admin) |
-| Facebook Messenger | ✅ webhook page | ✅ page token | ✅ descarga + sirve con cap | OAuth + elegir Página |
-| Instagram Direct | ✅ webhook instagram | ✅ Graph (`{ig-id}/messages`) | ✅ descarga + sirve con cap | Misma OAuth/Página de Facebook; requiere cuenta IG profesional vinculada |
-| Gmail (`email`) | ✅ cron ~5 min | ✅ Gmail API | ❌ (fuera de alcance PR-6) | OAuth Google |
-| TikTok | ❌ | ❌ | ❌ | Pendiente C-6 (DMs solo si API oficial) |
+| Canal | Inbound | Outbound texto | Media in | Media out | Cómo se conecta |
+|---|---|---|---|---|---|
+| WhatsApp | ✅ webhook | ✅ Graph | ✅ descarga + sirve con cap | ✅ subida multipart | Credenciales + Coexistence (asistente admin) |
+| Facebook Messenger | ✅ webhook page | ✅ page token | ✅ descarga + sirve con cap | ✅ subida multipart | OAuth + elegir Página |
+| Instagram Direct | ✅ webhook instagram | ✅ Graph (`{ig-id}/messages`) | ✅ descarga + sirve con cap | ❌ (requiere URL pública, ver 3.2c) | Misma OAuth/Página de Facebook; requiere cuenta IG profesional vinculada |
+| Gmail (`email`) | ✅ cron ~5 min | ✅ Gmail API | ❌ (fuera de alcance PR-6) | ❌ | OAuth Google |
+| TikTok | ❌ | ❌ | ❌ | ❌ | Pendiente C-6 (DMs solo si API oficial) |
 
-### 3.2b Media (PR-6)
+### 3.2b Media entrante (PR-6)
 
 - Descarga inbound de imágenes/audio/video/documentos de WhatsApp (Graph, dos pasos: media id → URL temporal → descarga con el mismo token) y de Messenger/Instagram (URL de adjunto del webhook).
 - Almacenamiento **opaco**: `wp-content/uploads/vitacare-crm-media/{YYYY}/{MM}/{uuid}.{ext}`, con `.htaccess` deny-all + `index.php` vacío — no accesible por URL directa.
 - Se sirve únicamente vía `GET /wp-json/vitacare-crm/v1/media/{message_id}`, protegido por la capability `vitacare_crm_access` (mismo permission_callback que el resto de la API del CRM).
 - Tope de 25 MB por archivo (`limit_response_size` de `wp_remote_get`); si la descarga falla o excede el tope, el mensaje queda sin adjunto reproducible pero no rompe el webhook (se loguea y sigue).
 - La API nunca expone media ids de Meta ni URLs de CDN de terceros — `media_url` en las respuestas REST es `null` o la URL propia `/media/{id}`.
-- Fuera de alcance de PR-6: envío de media saliente (outbound) desde la bandeja — sigue bloqueado con el mensaje "disponible en una fase posterior".
+
+### 3.2c Media saliente (PR-6b)
+
+- `POST /wp-json/vitacare-crm/v1/media/upload` (multipart, cap `vitacare_crm_access`): staff sube un archivo, se valida el mime real (finfo, no el que manda el navegador) contra una lista blanca, tope 25 MB, se guarda en el mismo almacenamiento opaco y devuelve un `media_attachment_id` (el ref opaco, no una ruta de disco).
+- `POST /conversations/{id}/messages` acepta `media_attachment_id`: WhatsApp sube el binario a `/{phone-id}/media` (multipart) y envía `type=image|audio|video|document` con el id devuelto + caption opcional en el mismo mensaje; Messenger sube a `/me/message_attachments` (multipart, `is_reusable:false`) y envía con `attachment_id` — si hay caption, va como una segunda burbuja de texto (Messenger no combina adjunto+texto en un mensaje).
+- El binario **nunca sale de nuestro servidor hacia una URL pública**: ambos flujos usan subida multipart directa a Graph con el token del canal, coherente con el diseño "opaco" de PR-6.
+- **Instagram queda fuera** de esta entrega: su Send API (hasta donde se pudo confirmar) espera `attachment.payload.url` públicamente accesible, no un endpoint de subida multipart tipo Messenger — exponer el almacenamiento privado por URL pública contradice el diseño de PR-6, así que se deja pendiente de una decisión de producto explícita en vez de improvisar algo no verificado en un canal usado para comunicación con pacientes.
+- UI: botón 📎 en el compositor (solo WhatsApp/Messenger), sube al elegir archivo, muestra chip con el nombre y permite quitarlo antes de enviar.
 
 ### 3.3 Estructura de archivos (plugin = raíz del repo)
 
@@ -89,7 +97,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 crmvitacare/
 ├── ESTADO_CRM.md              ← LEER PRIMERO
 ├── README.md
-├── vitacare-crm.php           ← bootstrap v1.2.0
+├── vitacare-crm.php           ← bootstrap v1.3.0
 ├── uninstall.php
 ├── bin/package-plugin.ps1
 ├── docs/
@@ -108,7 +116,7 @@ crmvitacare/
 │   ├── class-vitacare-crm-rest.php
 │   ├── class-vitacare-crm-webhook.php
 │   ├── class-vitacare-crm-graph.php
-│   ├── class-vitacare-crm-media.php     ← PR-6: descarga/almacenamiento opaco
+│   ├── class-vitacare-crm-media.php     ← PR-6/6b: descarga/subida/almacenamiento opaco
 │   ├── class-vitacare-crm-db.php
 │   ├── class-vitacare-crm-logger.php
 │   ├── class-vitacare-crm-conversations-repo.php
@@ -130,6 +138,7 @@ crmvitacare/
 | `GET/POST .../conversations/{id}/messages` | Hilo / envío |
 | `PATCH .../conversations/{id}` | status, assigned_to, wp_user_id |
 | `GET .../media/{message_id}` | PR-6: sirve el adjunto descargado (cap `vitacare_crm_access`) |
+| `POST .../media/upload` | PR-6b: sube un archivo de staff (multipart, cap `vitacare_crm_access`) |
 | `GET .../ping` | Health (público, sin secretos) |
 
 ### 3.5 Admin WP (capability `manage_options`)
@@ -158,6 +167,7 @@ crmvitacare/
 | D-13 | Secrets fuera de Git; opcional `VITACARE_CRM_ENCRYPTION_KEY` |
 | D-14–16 | TikTok solo API oficial; DMs solo si existen |
 | D-17 | Instagram no tiene OAuth propio: usa el mismo token de la Página de Facebook ya conectada (`instagram_business_account`); requiere cuenta IG profesional vinculada a esa Página en Meta Business Suite |
+| D-18 | Media saliente por Instagram queda pendiente: su Send API espera `attachment.payload.url` pública; no se expone el almacenamiento privado por URL solo para cumplir eso sin decisión de producto explícita (ver 3.2c) |
 
 ---
 
@@ -165,17 +175,17 @@ crmvitacare/
 
 | Prioridad | ID | Trabajo |
 |---|---|---|
-| Alta | **Ops** | Instalar ZIP v1.2.0 en WP prod; configurar Meta + Google; agregar producto Instagram en la App de Meta; probar `/crm` |
+| Alta | **Ops** | Instalar ZIP v1.3.0 en WP prod; configurar Meta + Google; agregar producto Instagram en la App de Meta; probar `/crm` |
 | Media | **C-6** | TikTok OAuth + spike DM/comentarios/métricas |
-| Media | **PR-6b** | Envío de media saliente (outbound) desde la bandeja — hoy solo se recibe/muestra, no se adjunta al responder |
-| Baja | Polish | Leads pipeline (DB v3), roles staff, notificaciones |
+| Media | **D-18** | Decidir si vale la pena exponer media públicamente (con firma/expiración) para habilitar envío de adjuntos por Instagram |
+| Baja | Polish | Leads pipeline (DB v3), roles staff, notificaciones, limpieza de adjuntos subidos y nunca enviados |
 
 ### Siguiente paso de ingeniería recomendado
 
 1. `git pull` del repo.  
-2. Empaquetar e instalar en Hostinger si aún no está v1.2.0.  
+2. Empaquetar e instalar en Hostinger si aún no está v1.3.0.  
 3. Completar Coexistence WA + Facebook Page (y cuenta Instagram vinculada) + Gmail en admin.  
-4. Código: **C-6 TikTok** o **PR-6b media saliente**.
+4. Código: **C-6 TikTok** o decidir/implementar D-18 (media saliente Instagram).
 
 ---
 
@@ -208,7 +218,8 @@ cd C:\Users\User\Documents\crmvitacare && git pull origin main
 | 2026-08-03 | Handoff docs CONTINUAR + ESTADO completo | `38aca98` |
 | 2026-08-03 | C-3 Instagram v1.1.0 (OAuth Página→IG, webhook, in/out, UI) | `cee846e` |
 | 2026-08-03 | Regla de rama única (main) para handoff Grok/Claude Code | `b189b27` |
-| 2026-08-03 | **PR-6 Media v1.2.0** (descarga opaca WA/Messenger/IG, endpoint `/media/{id}`, render en bandeja) | este commit |
+| 2026-08-03 | PR-6 Media v1.2.0 (descarga opaca WA/Messenger/IG, endpoint `/media/{id}`, render en bandeja) | `f38597b` |
+| 2026-08-03 | **PR-6b Media saliente v1.3.0** (subida multipart WA/Messenger, `/media/upload`, botón de clip en bandeja; Instagram pendiente D-18) | este commit |
 
 ---
 

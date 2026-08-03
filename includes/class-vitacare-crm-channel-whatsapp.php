@@ -548,6 +548,190 @@ final class Vitacare_Crm_Channel_Whatsapp {
 		);
 	}
 
+	/**
+	 * PR-6b: envía un adjunto ya almacenado localmente (ref `local:...`).
+	 * Sube el binario a Graph (multipart, sin exponer URLs propias a Meta)
+	 * y reutiliza el mismo ref como media_url del mensaje saliente.
+	 *
+	 * @return array<string, mixed>|WP_Error
+	 */
+	public static function send_media( int $conversation_id, string $media_ref, string $caption = '' ) {
+		if ( ! Vitacare_Crm_Settings::flag( 'whatsapp' ) ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_forbidden',
+				__( 'El canal WhatsApp está desactivado en ajustes.', 'vitacare-crm' ),
+				403
+			);
+		}
+
+		$path = Vitacare_Crm_Media::resolve_path( $media_ref );
+		if ( null === $path ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'Adjunto inválido o ya no disponible. Vuelve a adjuntarlo.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$conv = Vitacare_Crm_Conversations_Repo::get( $conversation_id );
+		if ( null === $conv ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Conversación no encontrada.', 'vitacare-crm' ), 404 );
+		}
+		if ( ( $conv['channel'] ?? '' ) !== 'whatsapp' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'Solo se puede enviar por WhatsApp en esta versión.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$to = self::digits( (string) ( $conv['external_contact_id'] ?? '' ) );
+		if ( $to === '' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'La conversación no tiene destinatario WhatsApp.', 'vitacare-crm' ),
+				400
+			);
+		}
+
+		$phone_id = Vitacare_Crm_Settings::get( 'phone_number_id' );
+		$token    = Vitacare_Crm_Settings::get( 'access_token' );
+		if ( $phone_id === '' || $token === '' ) {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_graph_error',
+				__( 'Faltan Access Token o Phone Number ID en ajustes CRM.', 'vitacare-crm' ),
+				502
+			);
+		}
+
+		$mime   = Vitacare_Crm_Media::detect_mime_from_path( $path );
+		$bucket = Vitacare_Crm_Media::type_bucket_for_mime( $mime ); // image|audio|video|document
+		$version = Vitacare_Crm_Settings::graph_version();
+		$ua      = 'VITACARE-CRM/' . VITACARE_CRM_VERSION;
+
+		// Paso 1: subir el binario a Graph (multipart) -> media id de WhatsApp.
+		$upload_url = 'https://graph.facebook.com/' . rawurlencode( $version ) . '/' . rawurlencode( $phone_id ) . '/media';
+		$mp         = Vitacare_Crm_Media::build_multipart_body(
+			array(
+				'messaging_product' => 'whatsapp',
+				'type'              => $mime,
+			),
+			'file',
+			$path,
+			basename( $path ),
+			$mime
+		);
+		$upload_resp = wp_remote_post(
+			$upload_url,
+			array(
+				'timeout' => 30,
+				'headers' => array_merge( $mp['headers'], array( 'Authorization' => 'Bearer ' . $token, 'User-Agent' => $ua ) ),
+				'body'    => $mp['body'],
+			)
+		);
+		if ( is_wp_error( $upload_resp ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_graph_error', __( 'Error de red al subir el adjunto a WhatsApp.', 'vitacare-crm' ), 502 );
+		}
+		$upload_code = (int) wp_remote_retrieve_response_code( $upload_resp );
+		$upload_data = json_decode( (string) wp_remote_retrieve_body( $upload_resp ), true );
+		if ( $upload_code < 200 || $upload_code >= 300 || empty( $upload_data['id'] ) ) {
+			Vitacare_Crm_Logger::error( 'wa_media_upload_failed', array( 'http' => $upload_code ) );
+			return Vitacare_Crm_Db::error( 'vitacare_crm_graph_error', __( 'No se pudo subir el adjunto a WhatsApp.', 'vitacare-crm' ), 502 );
+		}
+		$wa_media_id = (string) $upload_data['id'];
+
+		// Paso 2: enviar el mensaje referenciando el media id subido.
+		$caption   = trim( $caption );
+		$media_obj = array( 'id' => $wa_media_id );
+		if ( $caption !== '' && in_array( $bucket, array( 'image', 'video', 'document' ), true ) ) {
+			$media_obj['caption'] = $caption;
+		}
+		if ( $bucket === 'document' ) {
+			$media_obj['filename'] = basename( $path );
+		}
+
+		$payload = array(
+			'messaging_product' => 'whatsapp',
+			'recipient_type'    => 'individual',
+			'to'                => $to,
+			'type'              => $bucket,
+			$bucket             => $media_obj,
+		);
+
+		$result = Vitacare_Crm_Graph::post( $phone_id . '/messages', $payload );
+
+		if ( ! $result['ok'] ) {
+			if ( Vitacare_Crm_Graph::is_outside_window( $result['error_code'], $result['error_message'] ) ) {
+				return Vitacare_Crm_Db::error(
+					'vitacare_crm_outside_window',
+					__( 'Fuera de la ventana de 24 horas. El cliente debe escribir primero.', 'vitacare-crm' ),
+					409
+				);
+			}
+			if ( Vitacare_Crm_Graph::is_rate_limited( $result['code'], $result['error_code'] ) ) {
+				return Vitacare_Crm_Db::error(
+					'vitacare_crm_rate_limited',
+					__( 'Límite de envío de Meta. Intenta de nuevo en unos minutos.', 'vitacare-crm' ),
+					429
+				);
+			}
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_graph_error',
+				__( 'No se pudo enviar el adjunto por WhatsApp. Revisa el token y la configuración Meta.', 'vitacare-crm' ),
+				502
+			);
+		}
+
+		$wamid = isset( $result['data']['messages'][0]['id'] ) ? (string) $result['data']['messages'][0]['id'] : '';
+		if ( $wamid === '' ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_graph_error', __( 'Meta no devolvió ID de mensaje.', 'vitacare-crm' ), 502 );
+		}
+
+		$existing = Vitacare_Crm_Messages_Repo::find_by_external_id( $wamid );
+		if ( $existing ) {
+			return Vitacare_Crm_Messages_Repo::format( $existing );
+		}
+
+		$created = current_time( 'mysql' );
+		$insert  = Vitacare_Crm_Messages_Repo::insert_message(
+			array(
+				'conversation_id'     => $conversation_id,
+				'direction'           => 'outbound',
+				'sender_type'         => 'staff',
+				'message_type'        => $bucket,
+				'body'                => $caption !== '' ? $caption : null,
+				'media_url'           => $media_ref,
+				'media_mime'          => $mime,
+				'external_message_id' => $wamid,
+				'delivery_status'     => 'sent',
+				'created_at'          => $created,
+			)
+		);
+
+		if ( is_int( $insert ) && $insert > 0 ) {
+			Vitacare_Crm_Conversations_Repo::touch_after_message( $conversation_id, $created, false );
+			$row = Vitacare_Crm_Messages_Repo::find_by_external_id( $wamid );
+			if ( $row ) {
+				return Vitacare_Crm_Messages_Repo::format( $row );
+			}
+		}
+
+		return array(
+			'id'                  => 0,
+			'conversation_id'     => $conversation_id,
+			'direction'           => 'outbound',
+			'sender_type'         => 'staff',
+			'message_type'        => $bucket,
+			'body'                => $caption !== '' ? $caption : null,
+			'media_url'           => null,
+			'media_mime'          => $mime,
+			'delivery_status'     => 'sent',
+			'external_message_id' => $wamid,
+			'created_at'          => Vitacare_Crm_Db::format_datetime( $created ),
+			'warning'             => 'persisted_partial',
+		);
+	}
+
 	private static function digits( string $s ): string {
 		return preg_replace( '/\D+/', '', $s ) ?? '';
 	}

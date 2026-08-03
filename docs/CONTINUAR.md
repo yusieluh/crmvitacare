@@ -29,7 +29,7 @@ Luego:
 
 1. Abrir y leer **`ESTADO_CRM.md`** (completo).  
 2. Leer este archivo.  
-3. **No** rehacer PR-0…PR-6 ni C-1, C-2, C-3, C-4, C-5, C-7 (ya están en `main` v1.2.0).  
+3. **No** rehacer PR-0…PR-6b ni C-1, C-2, C-3, C-4, C-5, C-7 (ya están en `main` v1.3.0).  
 4. Elegir trabajo de la sección “Pendiente” de ESTADO.
 
 ---
@@ -55,11 +55,12 @@ Luego:
 - Facebook: OAuth, selector de Página, Messenger in/out, subscribed_apps
 - Instagram Direct: cuenta profesional vinculada a la Página (mismo token), webhook `object=instagram`, in/out Graph
 - Gmail: OAuth, sync INBOX (cron 5 min), envío desde bandeja
-- **Media (PR-6):** descarga inbound de imagen/audio/video/documento de WhatsApp/Messenger/Instagram a `wp-content/uploads/vitacare-crm-media/` (deny-direct vía `.htaccess`), servida solo por `GET /media/{message_id}` con cap `vitacare_crm_access`; render en la bandeja (`<img>`/`<audio>`/`<video>`/enlace de descarga)
+- **Media entrante (PR-6):** descarga de imagen/audio/video/documento de WhatsApp/Messenger/Instagram a `wp-content/uploads/vitacare-crm-media/` (deny-direct vía `.htaccess`), servida solo por `GET /media/{message_id}` con cap `vitacare_crm_access`; render en la bandeja (`<img>`/`<audio>`/`<video>`/enlace de descarga)
+- **Media saliente (PR-6b):** `POST /media/upload` (staff sube archivo, valida mime real + tope 25 MB) y `POST /conversations/{id}/messages` con `media_attachment_id` — WhatsApp y Messenger suben el binario directo a Graph (multipart, sin URL pública). Instagram sin soporte todavía (ver D-18 en ESTADO).
 - Admin: Cuentas, WA Coexistence checklist, Facebook (+ estado Instagram), Gmail, Credenciales
 - DB upgrader a v2, logger en uploads protegido
 
-Versión plugin: **1.2.0** en `vitacare-crm.php`.
+Versión plugin: **1.3.0** en `vitacare-crm.php`.
 
 ---
 
@@ -69,7 +70,7 @@ Versión plugin: **1.2.0** en `vitacare-crm.php`.
 |---|---|
 | Ops | Desplegar ZIP en producción; configurar Meta + Google; agregar producto Instagram en la App Meta; cron Hostinger |
 | **C-6** | TikTok OAuth; comentarios/métricas si API; DMs solo si API existe |
-| **PR-6b** | Media saliente (adjuntar imagen/documento al responder desde la bandeja) — PR-6 solo cubrió inbound |
+| **D-18** | Media saliente por Instagram: decidir si se expone media con URL firmada/expirable (Send API de IG la exige) |
 | Leads | Pipeline DB v3 + UI (post-MVP en DESIGN) |
 
 ---
@@ -120,7 +121,7 @@ Trabaja en el plugin WordPress VITACARE CRM:
 - WhatsApp solo Cloud API + Coexistence (prohibido Baileys/QR no oficial)
 - Al terminar: actualiza ESTADO_CRM.md, commit y push a GitHub
 
-Tarea concreta: <describir C-6 / PR-6b / etc.>
+Tarea concreta: <describir C-6 / D-18 / etc.>
 ```
 
 ---

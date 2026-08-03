@@ -92,6 +92,128 @@ final class Vitacare_Crm_Media {
 	}
 
 	/**
+	 * PR-6b: guarda un archivo subido por staff ($_FILES, vía
+	 * WP_REST_Request::get_file_params()) en el mismo almacenamiento opaco
+	 * que la media entrante, listo para reenviarlo a Graph. El mime se
+	 * detecta con finfo sobre el contenido real — nunca se confía en el
+	 * Content-Type que manda el navegador.
+	 *
+	 * @param array<string, mixed> $file Un elemento de $_FILES (ya validado por PHP).
+	 * @return array{ref: string, mime: string, size: int, filename: string}|WP_Error
+	 */
+	public static function store_uploaded_file( array $file ) {
+		$error = isset( $file['error'] ) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
+		if ( $error !== UPLOAD_ERR_OK ) {
+			return new WP_Error( 'vitacare_crm_media', __( 'Error al subir el archivo.', 'vitacare-crm' ) );
+		}
+
+		$tmp  = (string) ( $file['tmp_name'] ?? '' );
+		$size = (int) ( $file['size'] ?? 0 );
+		if ( $tmp === '' || ! is_uploaded_file( $tmp ) ) {
+			return new WP_Error( 'vitacare_crm_media', __( 'Archivo inválido.', 'vitacare-crm' ) );
+		}
+		if ( $size <= 0 || $size > self::MAX_BYTES ) {
+			return new WP_Error( 'vitacare_crm_media', __( 'El archivo supera el máximo de 25 MB.', 'vitacare-crm' ) );
+		}
+
+		$original_name = (string) ( $file['name'] ?? '' );
+		$mime          = self::detect_mime_from_path( $tmp, $original_name );
+		if ( ! self::is_allowed_outbound_mime( $mime ) ) {
+			return new WP_Error( 'vitacare_crm_media', __( 'Tipo de archivo no permitido.', 'vitacare-crm' ) );
+		}
+
+		$target = self::reserve_path( self::extension_for_mime( $mime ) );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_move_uploaded_file
+		if ( ! move_uploaded_file( $tmp, $target['path'] ) ) {
+			return new WP_Error( 'vitacare_crm_media', __( 'No se pudo guardar el archivo.', 'vitacare-crm' ) );
+		}
+
+		return array(
+			'ref'      => $target['ref'],
+			'mime'     => $mime,
+			'size'     => $size,
+			'filename' => $original_name !== '' ? sanitize_file_name( $original_name ) : basename( $target['path'] ),
+		);
+	}
+
+	/**
+	 * Detecta el mime real inspeccionando el contenido (finfo); usa el
+	 * nombre original solo como respaldo si finfo no está disponible.
+	 */
+	public static function detect_mime_from_path( string $path, string $original_name = '' ): string {
+		if ( function_exists( 'finfo_open' ) ) {
+			$finfo = finfo_open( FILEINFO_MIME_TYPE );
+			if ( $finfo ) {
+				$detected = finfo_file( $finfo, $path );
+				finfo_close( $finfo );
+				if ( is_string( $detected ) && $detected !== '' ) {
+					return self::clean_mime( $detected );
+				}
+			}
+		}
+		$name = $original_name !== '' ? $original_name : $path;
+		$type = wp_check_filetype( $name );
+		return ! empty( $type['type'] ) ? (string) $type['type'] : 'application/octet-stream';
+	}
+
+	public static function type_bucket_for_mime( string $mime ): string {
+		if ( str_starts_with( $mime, 'image/' ) ) {
+			return 'image';
+		}
+		if ( str_starts_with( $mime, 'audio/' ) ) {
+			return 'audio';
+		}
+		if ( str_starts_with( $mime, 'video/' ) ) {
+			return 'video';
+		}
+		return 'document';
+	}
+
+	public static function is_allowed_outbound_mime( string $mime ): bool {
+		return isset( self::EXT_MAP[ $mime ] );
+	}
+
+	/**
+	 * Construye un body multipart/form-data manualmente: los adjuntos de
+	 * WhatsApp (upload de media) y Messenger (message_attachments) exigen
+	 * multipart real, que la envoltura JSON de wp_remote_post no genera.
+	 *
+	 * @param array<string, string> $fields Campos de texto adicionales.
+	 * @return array{body: string, headers: array{Content-Type: string}}
+	 */
+	public static function build_multipart_body(
+		array $fields,
+		string $file_field,
+		string $file_path,
+		string $file_name,
+		string $file_mime
+	): array {
+		$file_name = str_replace( array( '"', "\r", "\n" ), '', $file_name );
+		$boundary  = 'VitacareCRM' . wp_generate_password( 24, false, false );
+		$eol       = "\r\n";
+		$body      = '';
+
+		foreach ( $fields as $name => $value ) {
+			$body .= '--' . $boundary . $eol;
+			$body .= 'Content-Disposition: form-data; name="' . $name . '"' . $eol . $eol;
+			$body .= $value . $eol;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents
+		$contents = (string) file_get_contents( $file_path );
+		$body    .= '--' . $boundary . $eol;
+		$body    .= 'Content-Disposition: form-data; name="' . $file_field . '"; filename="' . $file_name . '"' . $eol;
+		$body    .= 'Content-Type: ' . $file_mime . $eol . $eol;
+		$body    .= $contents . $eol;
+		$body    .= '--' . $boundary . '--' . $eol;
+
+		return array(
+			'body'    => $body,
+			'headers' => array( 'Content-Type' => 'multipart/form-data; boundary=' . $boundary ),
+		);
+	}
+
+	/**
 	 * Descarga un media de WhatsApp Cloud API por su media id (dos pasos:
 	 * resolver URL temporal, luego descargar con el mismo token).
 	 *

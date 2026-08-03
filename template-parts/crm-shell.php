@@ -116,10 +116,18 @@ $current    = wp_get_current_user();
 				</div>
 				<div class="vcrm-composer" id="vcrm-composer" hidden>
 					<div class="vcrm-composer-error" id="vcrm-composer-error" hidden></div>
+					<div class="vcrm-attach-chip" id="vcrm-attach-chip" hidden>
+						<span id="vcrm-attach-chip-name"></span>
+						<button type="button" id="vcrm-attach-remove" aria-label="<?php echo esc_attr__( 'Quitar adjunto', 'vitacare-crm' ); ?>">×</button>
+					</div>
 					<label class="screen-reader-text" for="vcrm-composer-input"><?php echo esc_html__( 'Mensaje', 'vitacare-crm' ); ?></label>
 					<textarea id="vcrm-composer-input" class="vcrm-textarea" rows="2" maxlength="4096" placeholder="<?php echo esc_attr__( 'Escribe una respuesta… (Enter envía, Shift+Enter nueva línea)', 'vitacare-crm' ); ?>"></textarea>
 					<div class="vcrm-composer-bar">
-						<span class="vcrm-muted" id="vcrm-composer-hint"><?php echo esc_html__( 'Solo texto · ventana 24 h de WhatsApp', 'vitacare-crm' ); ?></span>
+						<div class="vcrm-composer-bar-left">
+							<button type="button" class="vcrm-btn vcrm-btn-ghost vcrm-btn-attach" id="vcrm-btn-attach" title="<?php echo esc_attr__( 'Adjuntar archivo', 'vitacare-crm' ); ?>" disabled>📎</button>
+							<input type="file" id="vcrm-attach-input" hidden accept="image/*,audio/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" />
+							<span class="vcrm-muted" id="vcrm-composer-hint"><?php echo esc_html__( 'Solo texto · ventana 24 h de WhatsApp', 'vitacare-crm' ); ?></span>
+						</div>
 						<button type="button" class="vcrm-btn vcrm-btn-primary" id="vcrm-btn-send" disabled><?php echo esc_html__( 'Enviar', 'vitacare-crm' ); ?></button>
 					</div>
 				</div>

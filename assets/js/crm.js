@@ -22,7 +22,12 @@
 		sending: false,
 		pollTimer: null,
 		searchTimer: null,
+		attachment: null, // {ref, filename} tras subir vía /media/upload
+		attaching: false,
 	};
+
+	var ATTACH_MAX_BYTES = 25 * 1024 * 1024;
+	var ATTACH_CHANNELS = ['whatsapp', 'facebook'];
 
 	var el = {};
 
@@ -203,6 +208,7 @@
 
 	function selectConversation(id) {
 		state.selectedId = id;
+		clearAttachment();
 		renderList();
 		loadThread(true);
 		startPoll();
@@ -238,6 +244,22 @@
 			});
 	}
 
+	function canSendToChannel(ch) {
+		return ch === 'whatsapp' || ch === 'facebook' || ch === 'instagram' || ch === 'email';
+	}
+
+	function canAttachToChannel(ch) {
+		return ATTACH_CHANNELS.indexOf(ch) !== -1;
+	}
+
+	function updateSendButton() {
+		var ch = state.selected && state.selected.channel;
+		var closed = state.selected && state.selected.status === 'closed';
+		var hasContent = !!el.composerInput.value.trim() || !!state.attachment;
+		el.btnSend.disabled =
+			state.sending || state.attaching || !hasContent || !canSendToChannel(ch) || !!closed;
+	}
+
 	function renderThreadHeader(conv) {
 		var name =
 			conv.contact_name || conv.contact_phone || conv.external_contact_id || '#' + conv.id;
@@ -251,14 +273,13 @@
 		var isClosed = conv.status === 'closed';
 		el.btnClose.hidden = isClosed;
 		el.btnReopen.hidden = !isClosed;
-		var canSend =
-			!isClosed &&
-			(conv.channel === 'whatsapp' ||
-				conv.channel === 'facebook' ||
-				conv.channel === 'instagram' ||
-				conv.channel === 'email');
+		var canSend = !isClosed && canSendToChannel(conv.channel);
 		el.composerInput.disabled = !canSend;
-		el.btnSend.disabled = !canSend || !el.composerInput.value.trim();
+		if (el.attachBtn) {
+			el.attachBtn.disabled = !canSend || !canAttachToChannel(conv.channel);
+			if (!canAttachToChannel(conv.channel)) clearAttachment();
+		}
+		updateSendButton();
 		if (conv.channel === 'whatsapp') {
 			el.composerHint.textContent = t('hintWa', 'Solo texto · ventana 24 h de WhatsApp');
 		} else if (conv.channel === 'facebook') {
@@ -382,6 +403,82 @@
 		}
 	}
 
+	function renderAttachChip() {
+		if (!el.attachChip) return;
+		if (state.attaching) {
+			el.attachChip.hidden = false;
+			el.attachChipName.textContent = t('uploading', 'Subiendo…');
+			el.attachRemove.hidden = true;
+			return;
+		}
+		if (!state.attachment) {
+			el.attachChip.hidden = true;
+			return;
+		}
+		el.attachChip.hidden = false;
+		el.attachChipName.textContent = state.attachment.filename || t('attachment', 'Adjunto');
+		el.attachRemove.hidden = false;
+	}
+
+	function clearAttachment() {
+		state.attachment = null;
+		state.attaching = false;
+		if (el.attachInput) el.attachInput.value = '';
+		renderAttachChip();
+		updateSendButton();
+	}
+
+	function uploadAttachment(file) {
+		if (!file) return;
+		if (file.size > ATTACH_MAX_BYTES) {
+			showComposerError(t('attachTooBig', 'El archivo supera el máximo de 25 MB.'));
+			if (el.attachInput) el.attachInput.value = '';
+			return;
+		}
+
+		state.attaching = true;
+		state.attachment = null;
+		renderAttachChip();
+		updateSendButton();
+		showComposerError('');
+
+		var fd = new FormData();
+		fd.append('file', file);
+
+		fetch(restUrl + '/media/upload', {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: { 'X-WP-Nonce': nonce },
+			body: fd,
+		})
+			.then(function (res) {
+				return res.json().then(function (data) {
+					if (!res.ok) {
+						var msg =
+							(data && (data.message || (data.data && data.data.message))) ||
+							t('errorGeneric', 'Error de red o permisos.');
+						throw new Error(msg);
+					}
+					return data;
+				});
+			})
+			.then(function (data) {
+				state.attachment = {
+					ref: data.media_attachment_id,
+					filename: data.filename || file.name,
+				};
+			})
+			.catch(function (err) {
+				showComposerError(err.message);
+				if (el.attachInput) el.attachInput.value = '';
+			})
+			.finally(function () {
+				state.attaching = false;
+				renderAttachChip();
+				updateSendButton();
+			});
+	}
+
 	function showComposerError(msg) {
 		if (!msg) {
 			el.composerError.hidden = true;
@@ -393,20 +490,26 @@
 	}
 
 	function sendMessage() {
-		if (state.sending || !state.selectedId) return;
+		if (state.sending || state.attaching || !state.selectedId) return;
 		var text = el.composerInput.value.trim();
-		if (!text) return;
+		var attachment = state.attachment;
+		if (!text && !attachment) return;
 
 		state.sending = true;
 		el.btnSend.disabled = true;
 		showComposerError('');
 
+		var payload = {};
+		if (text) payload.body = text;
+		if (attachment) payload.media_attachment_id = attachment.ref;
+
 		api('/conversations/' + state.selectedId + '/messages', {
 			method: 'POST',
-			body: JSON.stringify({ body: text }),
+			body: JSON.stringify(payload),
 		})
 			.then(function (msg) {
 				el.composerInput.value = '';
+				clearAttachment();
 				if (msg && msg.id) {
 					state.messages.push(msg);
 					renderMessages(true);
@@ -416,7 +519,7 @@
 				// Actualizar preview en lista.
 				state.items.forEach(function (it) {
 					if (it.id === state.selectedId) {
-						it.last_message_preview = text;
+						it.last_message_preview = text || t('attachment', 'Adjunto');
 						it.last_message_at = msg.created_at || it.last_message_at;
 					}
 				});
@@ -434,7 +537,7 @@
 			})
 			.finally(function () {
 				state.sending = false;
-				el.btnSend.disabled = !el.composerInput.value.trim();
+				updateSendButton();
 			});
 	}
 
@@ -486,6 +589,11 @@
 		el.btnClose = $('vcrm-btn-close');
 		el.btnReopen = $('vcrm-btn-reopen');
 		el.contextDl = $('vcrm-context-dl');
+		el.attachBtn = $('vcrm-btn-attach');
+		el.attachInput = $('vcrm-attach-input');
+		el.attachChip = $('vcrm-attach-chip');
+		el.attachChipName = $('vcrm-attach-chip-name');
+		el.attachRemove = $('vcrm-attach-remove');
 		el.filterStatus = $('vcrm-filter-status');
 		el.filterChannel = $('vcrm-filter-channel');
 		el.filterQ = $('vcrm-filter-q');
@@ -522,15 +630,19 @@
 			if (state.selectedId) loadThread(false);
 		});
 		el.btnSend.addEventListener('click', sendMessage);
-		el.composerInput.addEventListener('input', function () {
-			var ch = state.selected && state.selected.channel;
-			var can = ch === 'whatsapp' || ch === 'facebook' || ch === 'instagram' || ch === 'email';
-			el.btnSend.disabled =
-				state.sending ||
-				!el.composerInput.value.trim() ||
-				!can ||
-				(state.selected && state.selected.status === 'closed');
-		});
+		el.composerInput.addEventListener('input', updateSendButton);
+		if (el.attachBtn && el.attachInput) {
+			el.attachBtn.addEventListener('click', function () {
+				el.attachInput.click();
+			});
+			el.attachInput.addEventListener('change', function () {
+				var file = el.attachInput.files && el.attachInput.files[0];
+				uploadAttachment(file);
+			});
+		}
+		if (el.attachRemove) {
+			el.attachRemove.addEventListener('click', clearAttachment);
+		}
 		el.composerInput.addEventListener('keydown', function (e) {
 			if (e.key === 'Enter' && !e.shiftKey) {
 				e.preventDefault();

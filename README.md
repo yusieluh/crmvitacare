@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.2.0** |
+| **Versión** | **1.3.0** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,14 +21,14 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.2.0
+## Qué incluye v1.3.0
 
 - Bandeja en `/crm` (lista, hilo, compositor)
-- WhatsApp: recibir + enviar (Cloud API)
-- Facebook: OAuth, elegir Página, Messenger in/out
-- Instagram Direct: cuenta profesional vinculada a la Página, in/out (misma Página, mismo token)
+- WhatsApp: recibir + enviar (Cloud API), incluida media
+- Facebook: OAuth, elegir Página, Messenger in/out, incluida media
+- Instagram Direct: cuenta profesional vinculada a la Página, in/out de texto (misma Página, mismo token); media entrante sí, saliente todavía no
 - Gmail: OAuth, sync INBOX, responder desde bandeja
-- Media (imagen/audio/video/documento) de WhatsApp/Messenger/Instagram: descarga a almacenamiento propio y se ve en la bandeja
+- Media (imagen/audio/video/documento): se recibe y se puede **adjuntar al responder** por WhatsApp/Messenger (botón 📎 en la bandeja)
 - Admin: Cuentas, WhatsApp Coexistence, Facebook (+ estado Instagram), Gmail, Credenciales
 
 ## Instalación
@@ -70,4 +70,4 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 
 ## Siguiente trabajo
 
-Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (C-6 TikTok, media saliente, despliegue prod).
+Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (C-6 TikTok, media saliente por Instagram, despliegue prod).

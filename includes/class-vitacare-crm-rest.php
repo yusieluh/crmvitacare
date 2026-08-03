@@ -83,6 +83,16 @@ final class Vitacare_Crm_Rest {
 			)
 		);
 
+		register_rest_route(
+			'vitacare-crm/v1',
+			'/media/upload',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'upload_media' ),
+				'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+			)
+		);
+
 		Vitacare_Crm_Webhook::register_routes();
 	}
 
@@ -196,7 +206,7 @@ final class Vitacare_Crm_Rest {
 			return Vitacare_Crm_Db::error( 'vitacare_crm_invalid_param', __( 'Cuerpo JSON inválido.', 'vitacare-crm' ), 400 );
 		}
 
-		// Allowlist: solo body (media en PR-6).
+		// Allowlist: texto y/o referencia de adjunto ya subido (PR-6b).
 		$allowed = array( 'body', 'media_attachment_id' );
 		$unknown = array_diff( array_keys( $body ), $allowed );
 		if ( ! empty( $unknown ) ) {
@@ -211,23 +221,35 @@ final class Vitacare_Crm_Rest {
 			);
 		}
 
-		if ( ! empty( $body['media_attachment_id'] ) ) {
-			return Vitacare_Crm_Db::error(
-				'vitacare_crm_invalid_param',
-				__( 'El envío de media estará disponible en una fase posterior.', 'vitacare-crm' ),
-				400
-			);
-		}
-
-		$text = isset( $body['body'] ) ? (string) $body['body'] : '';
+		$text      = isset( $body['body'] ) ? (string) $body['body'] : '';
+		$media_ref = isset( $body['media_attachment_id'] ) ? (string) $body['media_attachment_id'] : '';
 
 		$conv = Vitacare_Crm_Conversations_Repo::get( $id );
 		if ( null === $conv ) {
 			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Conversación no encontrada.', 'vitacare-crm' ), 404 );
 		}
-
 		$channel = (string) ( $conv['channel'] ?? '' );
-		if ( $channel === 'whatsapp' ) {
+
+		if ( $media_ref !== '' ) {
+			if ( ! Vitacare_Crm_Media::is_local_ref( $media_ref ) || null === Vitacare_Crm_Media::resolve_path( $media_ref ) ) {
+				return Vitacare_Crm_Db::error(
+					'vitacare_crm_invalid_param',
+					__( 'Adjunto inválido o ya no disponible. Vuelve a adjuntarlo.', 'vitacare-crm' ),
+					400
+				);
+			}
+			if ( $channel === 'whatsapp' ) {
+				$result = Vitacare_Crm_Channel_Whatsapp::send_media( $id, $media_ref, $text );
+			} elseif ( $channel === 'facebook' ) {
+				$result = Vitacare_Crm_Channel_Messenger::send_media( $id, $media_ref, $text );
+			} else {
+				return Vitacare_Crm_Db::error(
+					'vitacare_crm_invalid_param',
+					__( 'El envío de adjuntos no está disponible para este canal todavía.', 'vitacare-crm' ),
+					400
+				);
+			}
+		} elseif ( $channel === 'whatsapp' ) {
 			$result = Vitacare_Crm_Channel_Whatsapp::send_text( $id, $text );
 		} elseif ( $channel === 'facebook' ) {
 			$result = Vitacare_Crm_Channel_Messenger::send_text( $id, $text );
@@ -247,6 +269,36 @@ final class Vitacare_Crm_Rest {
 			return $result;
 		}
 		return new WP_REST_Response( $result, 201 );
+	}
+
+	/**
+	 * PR-6b: sube un archivo de staff (multipart) a almacenamiento privado y
+	 * devuelve su ref opaco para usarlo luego como media_attachment_id al
+	 * enviar el mensaje.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function upload_media( WP_REST_Request $request ) {
+		$files = $request->get_file_params();
+		if ( empty( $files['file'] ) || ! is_array( $files['file'] ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_invalid_param', __( 'Falta el archivo.', 'vitacare-crm' ), 400 );
+		}
+
+		$result = Vitacare_Crm_Media::store_uploaded_file( $files['file'] );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return new WP_REST_Response(
+			array(
+				'media_attachment_id' => $result['ref'],
+				'mime'                => $result['mime'],
+				'size'                => $result['size'],
+				'filename'            => $result['filename'],
+			),
+			201
+		);
 	}
 
 	/**

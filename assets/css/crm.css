@@ -382,6 +382,52 @@
 	margin-top: 0.45rem;
 }
 
+.vcrm-composer-bar-left {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	min-width: 0;
+}
+
+.vcrm-btn-attach {
+	padding: 0.3rem 0.55rem;
+	line-height: 1;
+	font-size: 1rem;
+}
+
+.vcrm-btn-attach:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.vcrm-attach-chip {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.82rem;
+	background: rgba(0, 0, 0, 0.05);
+	border-radius: 6px;
+	padding: 0.35rem 0.6rem;
+	margin-bottom: 0.5rem;
+	max-width: 100%;
+}
+
+.vcrm-attach-chip span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vcrm-attach-chip button {
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	font-size: 1rem;
+	line-height: 1;
+	color: var(--text-muted, #777);
+	flex-shrink: 0;
+}
+
 /* Context */
 .vcrm-inbox-context {
 	border-left: 1px solid var(--border, #e5e5e5);
