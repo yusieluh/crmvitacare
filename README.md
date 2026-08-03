@@ -1,95 +1,71 @@
 # VITACARE CRM
 
-Plugin de WordPress para **VITACARE Ecuador**: bandeja de conversaciones (WhatsApp, Facebook, Instagram, correo) y gestión de leads.
+Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Facebook Messenger, Gmail) y gestión de conversaciones.
 
 | | |
 |---|---|
-| **Repo (respaldo oficial)** | https://github.com/yusieluh/crmvitacare |
-| **URL en producción** | https://vitacareec.org/crm |
-| **Estado y plan** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
-| **Diseño completo** | [`docs/DESIGN.md`](./docs/DESIGN.md) |
-| **Proceso de documentación** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
+| **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
+| **URL producción** | https://vitacareec.org/crm |
+| **Versión** | **1.0.0** |
+| **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
+| **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
+| **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
 
-> **Fuente de información del proyecto:** [`ESTADO_CRM.md`](./ESTADO_CRM.md) — se actualiza con **cada cambio** y **cada plan**.
+> **Leer primero:** [`ESTADO_CRM.md`](./ESTADO_CRM.md).  
+> **Retomar en otra IA o más tarde:** [`docs/CONTINUAR.md`](./docs/CONTINUAR.md).
 
-## Integración (límites fijos)
+## Límites fijos
 
-- CRM **solo** en **https://vitacareec.org/crm**
-- **No se toca** la raíz del sitio https://vitacareec.org/
-- **No se modifica** el sistema ya instalado (`vitacare-core`, tema, WooCommerce, etc.)
-- Solo **lectura** de datos del ecosistema; tablas propias del plugin
-- Plugin instalado **junto a** lo existente, sin parchearlo
+- CRM **solo** en `/crm` — no se toca la raíz del sitio  
+- **No** se modifica `vitacare-core`, tema ni WooCommerce  
+- Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
+- Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Documentación y respaldo
+## Qué incluye v1.0.0
 
-- Fuente de información: **`ESTADO_CRM.md`**
-- Cada tarea: actualizar ESTADO → commit → push a GitHub  
-- Detalle: [`docs/PROCESS.md`](./docs/PROCESS.md)
+- Bandeja en `/crm` (lista, hilo, compositor)
+- WhatsApp: recibir + enviar (Cloud API)
+- Facebook: OAuth, elegir Página, Messenger in/out
+- Gmail: OAuth, sync INBOX, responder desde bandeja
+- Admin: Cuentas, WhatsApp Coexistence, Facebook, Gmail, Credenciales
 
-## Estructura
+## Instalación
 
-```
-vitacare-crm/
-├── vitacare-crm.php
-├── ESTADO_CRM.md
-├── README.md
-├── docs/
-│   ├── DESIGN.md
-│   └── PROCESS.md
-├── includes/
-├── template-parts/
-├── assets/
-└── uninstall.php
+```powershell
+git clone https://github.com/yusieluh/crmvitacare.git
+cd crmvitacare
+powershell -ExecutionPolicy Bypass -File .\bin\package-plugin.ps1
 ```
 
-## Estado
+Subir `dist/vitacare-crm.zip` en WordPress → Plugins → Activar.
 
-- Plugin **v1.0.0**: WhatsApp + Messenger + **Gmail** en la bandeja.
-- **Siguiente:** Instagram; TikTok; media WhatsApp.
+O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 
-Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
-
-### Admin WordPress
+## Admin
 
 | Menú | Uso |
 |---|---|
-| **Cuentas conectadas** | Estado de cada canal |
-| **WhatsApp (oficial)** | Coexistence |
-| **Facebook** | OAuth + Página |
-| **Gmail** | OAuth Google + sync |
-| **Credenciales** | Meta tokens / flags |
+| CRM VITACARE → Cuentas conectadas | Estado de canales |
+| WhatsApp (oficial) | Checklist Coexistence |
+| Facebook | Conectar + elegir Página |
+| Gmail | OAuth + sincronizar |
+| Credenciales | App Meta / flags |
 
-### API rápida (autenticado)
+## Redirect URIs (prod)
 
-```
-GET  /wp-json/vitacare-crm/v1/conversations
-GET  /wp-json/vitacare-crm/v1/conversations/{id}/messages
-POST /wp-json/vitacare-crm/v1/conversations/{id}/messages   {"body":"…"}
-PATCH /wp-json/vitacare-crm/v1/conversations/{id}
-```
+- Facebook: `…/wp-admin/admin.php?page=vitacare-crm-facebook`  
+- Gmail: `…/wp-admin/admin.php?page=vitacare-crm-gmail`  
+- Webhook Meta: `…/wp-json/vitacare-crm/v1/webhooks/meta`  
 
-Requiere usuario con `vitacare_crm_access` + nonce REST.
+## Documentación
 
-## Ajustes Meta (admin)
+| Archivo | Rol |
+|---|---|
+| `ESTADO_CRM.md` | **Fuente de verdad** — estado, plan, decisiones |
+| `docs/CONTINUAR.md` | Handoff para Claude Code / otra sesión |
+| `docs/PROCESS.md` | Checklist al cerrar tareas |
+| `docs/DESIGN.md` | Diseño histórico (secundario a ESTADO) |
 
-1. WordPress → menú **CRM VITACARE** (solo administradores / `manage_options`).
-2. Completar tokens o definir constants en `wp-config.php` (preferido en producción).
-3. Activar flag **WhatsApp**.
-4. En Meta for Developers, webhook URL:
-   `https://vitacareec.org/wp-json/vitacare-crm/v1/webhooks/meta`  
-   (pretty permalinks ON).
+## Siguiente trabajo
 
-Sin secretos o con flag OFF, el webhook responde **403** (fail-closed).
-
-## Instalación (resumen)
-
-1. Clonar este repo **o** generar ZIP:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\bin\package-plugin.ps1
-   ```
-   → `dist/vitacare-crm.zip`
-2. En WordPress: Plugins → Añadir → Subir plugin (o copiar a `wp-content/plugins/vitacare-crm/`).
-3. Activar **VITACARE CRM**.
-4. Abrir **https://vitacareec.org/crm** (login obligatorio; capability `vitacare_crm_access` para administradores).
-
-**No** modifica la raíz del sitio ni otros plugins/temas.
+Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (C-3 Instagram, PR-6 media, C-6 TikTok, despliegue prod).

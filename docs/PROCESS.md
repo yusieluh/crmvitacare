@@ -4,101 +4,69 @@
 
 ## Reglas fijas
 
-1. **`ESTADO_CRM.md` es la fuente de información** del proyecto (estado, plan, decisiones, changelog, siguiente paso). Se actualiza con **cada cambio** y **cada plan**.
-2. El CRM corre en **https://vitacareec.org/crm** — **no se toca** la raíz https://vitacareec.org/ ni el sistema ya instalado.
+1. **`ESTADO_CRM.md` es la fuente de información** del proyecto. Se actualiza con **cada cambio** y **cada plan**.
+2. El CRM corre en **https://vitacareec.org/crm** — **no se toca** la raíz ni el sistema instalado.
 3. Todo se documenta en el repo y se hace **push a GitHub** al completar cada tarea.
+4. Handoff entre sesiones/IAs: [`CONTINUAR.md`](./CONTINUAR.md).
 
 ---
 
-## 1. Principio
+## 1. Dónde vive cada cosa
 
-| Qué | Dónde vive |
+| Qué | Dónde |
 |---|---|
-| **Fuente de información (obligatoria)** | **`ESTADO_CRM.md`** |
-| Diseño técnico / detalle PR plan | `docs/DESIGN.md` (complemento; no sustituye ESTADO) |
+| **Fuente de información** | **`ESTADO_CRM.md`** |
+| Continuar después / Claude Code | `docs/CONTINUAR.md` |
+| Diseño técnico histórico | `docs/DESIGN.md` (secundario a ESTADO) |
 | Este proceso | `docs/PROCESS.md` |
-| Uso rápido | `README.md` |
-| Código del plugin | raíz del repo |
-| Respaldo | commits + push en GitHub |
+| Uso humano | `README.md` |
+| Código | raíz del repo = carpeta del plugin |
+| Respaldo | **GitHub `main`** |
 
-El chat, zips locales y notas sueltas **no** son la fuente de verdad. Si no está en `ESTADO_CRM.md` + GitHub, no cuenta.
+El chat y archivos temporales **no** son el respaldo.
 
 ---
 
 ## 2. Checklist al completar cada tarea
 
-Ejecutar **en orden** al cerrar una tarea (feature, fix, fase o decisión):
-
-1. **Código listo** (si aplica): funciona; **no toca** raíz del sitio, `vitacare-core`, tema ni sistema instalado.
-2. **`ESTADO_CRM.md` (siempre — fuente de información)**
-   - Actualizar estado de la fase/PR y el plan si cambió.
-   - Actualizar “Siguiente paso”.
-   - Añadir fila en **Changelog** (fecha, qué, ref de commit o PR).
-   - Actualizar “Última actualización”.
-3. **`docs/DESIGN.md`** — si cambió diseño, modelo de datos, API, seguridad o detalle de PRs (además de reflejarlo en ESTADO).
-4. **`README.md`** — solo si cambió instalación, URL o uso para humanos.
-5. **Commit** en el clone local:
-   ```text
-   docs: actualizar ESTADO tras <tarea>
-   ```
-   o, si hay código:
-   ```text
-   feat|fix|chore: <resumen>
-   ```
-6. **Push** a GitHub (`main` o rama de PR + merge).
-7. Confirmar en https://github.com/yusieluh/crmvitacare que los archivos se ven actualizados.
+1. Código listo; **sin** tocar core/tema/raíz del sitio.  
+2. **`ESTADO_CRM.md`**: estado, plan, siguiente paso, changelog, fecha.  
+3. `docs/CONTINUAR.md` si cambió “pendiente” o el prompt de handoff.  
+4. `README.md` si cambió instalación/menús/versión visible.  
+5. Commit con mensaje claro.  
+6. **`git push origin main`**.  
+7. Verificar en https://github.com/yusieluh/crmvitacare  
 
 ---
 
-## 3. Al iniciar una sesión de trabajo
+## 3. Al iniciar una sesión
 
-1. `git pull` del repo.
-2. Leer **`ESTADO_CRM.md`** (fuente de información).
-3. Si hay trabajo de diseño: consultar `docs/DESIGN.md` como detalle.
-4. No reabrir decisiones de `ESTADO_CRM.md` sin motivo nuevo **documentado en el mismo archivo**.
-5. Recordar: solo **https://vitacareec.org/crm**; no tocar raíz ni sistema instalado.
-
----
-
-## 4. Integración con el sistema VITACARE (recordatorio)
-
-- Plugin instalado en WordPress de **vitacareec.org**.
-- CRM en **https://vitacareec.org/crm**.
-- **No modificar** el sistema existente.
-- **Solo lectura** de información del sistema (usuarios, pedidos, etc.).
-- Datos del CRM en tablas propias del plugin.
+1. `git pull origin main`  
+2. Leer `ESTADO_CRM.md`  
+3. Leer `docs/CONTINUAR.md`  
+4. No reabrir decisiones cerradas sin documentar el cambio en ESTADO  
 
 ---
 
-## 5. Convención de ramas (recomendada)
+## 4. Integración (recordatorio)
 
-| Rama | Uso |
-|---|---|
-| `main` | Estable / instalable |
-| `feat/...` o `fix/...` | Trabajo en curso → PR → merge a `main` |
-
-Tras merge a `main`, el Changelog en `ESTADO_CRM.md` debe reflejar el cambio (puede ir en el mismo PR).
-
----
-
-## 6. Automatización con el asistente (Grok / IA)
-
-En este proyecto, el asistente debe:
-
-1. Al **terminar una tarea**, actualizar **primero `ESTADO_CRM.md`** y el resto según checklist, **sin que el usuario lo pida**.
-2. Preparar **commit** con mensaje claro.
-3. **Push a GitHub** al completar (salvo fallo de red/auth o riesgo de secretos).
-4. Nunca dejar el plan o el estado solo en el chat o en archivos temporales.
-5. No proponer cambios a la raíz del sitio ni al código del sistema ya instalado.
+- Plugin en WordPress de **vitacareec.org**  
+- Solo **https://vitacareec.org/crm**  
+- No modificar sistema existente  
+- Solo lectura de datos del ecosistema WP cuando se vincule  
+- Secrets nunca en el repo  
 
 ---
 
-## 7. Qué no versionar
+## 5. Automatización con asistentes (Grok / Claude / etc.)
 
-- Secretos Meta (tokens, app secret) — van en `wp-config.php` o options cifradas en el servidor, **no** en Git.
-- `node_modules`, zips generados locales si son grandes (añadir a `.gitignore` cuando existan).
-- Datos reales de pacientes/conversaciones exportados.
+El asistente debe:
+
+1. Al terminar una tarea, actualizar **ESTADO_CRM** sin que el usuario lo pida.  
+2. Commit + push a GitHub (salvo fallo de auth o secretos en el diff).  
+3. No dejar el plan solo en el chat.  
+4. No proponer QR WhatsApp no oficial ni scrapers.
 
 ---
 
-*Creado: 2026-08-03. Actualizar este archivo si cambia el flujo de trabajo del equipo.*
+*Actualizado 2026-08-03 — handoff multi-herramienta.*
