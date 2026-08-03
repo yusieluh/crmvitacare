@@ -15,8 +15,15 @@ final class Vitacare_Crm_Facebook_Oauth {
 	public const OPTION_PAGES_CACHE  = 'vitacare_crm_fb_pages_cache';
 	public const TRANSIENT_STATE     = 'vitacare_crm_fb_oauth_state';
 
-	/** Scopes mínimos para listar páginas y mensajería. */
-	public const SCOPES = 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,business_management';
+	/** C-3: cuenta profesional de Instagram vinculada a la Página seleccionada. */
+	public const OPTION_IG_ID       = 'vitacare_crm_ig_id';
+	public const OPTION_IG_USERNAME = 'vitacare_crm_ig_username';
+
+	/**
+	 * Scopes para listar páginas, mensajería Messenger e Instagram (la cuenta IG
+	 * profesional se administra a través del mismo token de Página).
+	 */
+	public const SCOPES = 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,business_management,instagram_basic,instagram_manage_messages';
 
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'register_menu' ), 25 );
@@ -53,6 +60,21 @@ final class Vitacare_Crm_Facebook_Oauth {
 	public static function get_page_token(): string {
 		$raw = (string) get_option( self::OPTION_PAGE_TOKEN, '' );
 		return Vitacare_Crm_Settings::read_secret( $raw );
+	}
+
+	/**
+	 * C-3: id de la cuenta profesional de Instagram vinculada a la Página conectada.
+	 */
+	public static function get_ig_id(): string {
+		return (string) get_option( self::OPTION_IG_ID, '' );
+	}
+
+	public static function get_ig_username(): string {
+		return (string) get_option( self::OPTION_IG_USERNAME, '' );
+	}
+
+	public static function is_instagram_connected(): bool {
+		return self::is_connected() && self::get_ig_id() !== '';
 	}
 
 	/**
@@ -364,7 +386,48 @@ final class Vitacare_Crm_Facebook_Oauth {
 			}
 		}
 
+		// C-3: si la Página tiene una cuenta profesional de Instagram vinculada,
+		// guardarla y activar el canal. No falla la selección de Página si no hay IG.
+		self::refresh_instagram_account( (string) $found['id'], (string) $found['access_token'] );
+
 		return true;
+	}
+
+	/**
+	 * C-3: consulta y guarda la cuenta de Instagram profesional vinculada a la
+	 * Página (instagram_business_account). Si no hay ninguna, limpia lo guardado.
+	 */
+	public static function refresh_instagram_account( string $page_id, string $page_token ): void {
+		$version  = Vitacare_Crm_Settings::graph_version();
+		$url      = add_query_arg(
+			array(
+				'fields'       => 'instagram_business_account{id,username}',
+				'access_token' => $page_token,
+			),
+			'https://graph.facebook.com/' . rawurlencode( $version ) . '/' . rawurlencode( $page_id )
+		);
+		$response = wp_remote_get(
+			$url,
+			array(
+				'timeout' => 20,
+				'headers' => array( 'User-Agent' => 'VITACARE-CRM/' . VITACARE_CRM_VERSION ),
+			)
+		);
+		if ( is_wp_error( $response ) ) {
+			Vitacare_Crm_Logger::error( 'ig_account_lookup_failed', array( 'msg' => $response->get_error_message() ) );
+			return;
+		}
+		$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		$ig   = is_array( $body ) ? ( $body['instagram_business_account'] ?? null ) : null;
+		if ( ! is_array( $ig ) || empty( $ig['id'] ) ) {
+			delete_option( self::OPTION_IG_ID );
+			delete_option( self::OPTION_IG_USERNAME );
+			return;
+		}
+
+		update_option( self::OPTION_IG_ID, (string) $ig['id'], false );
+		update_option( self::OPTION_IG_USERNAME, (string) ( $ig['username'] ?? '' ), false );
+		update_option( 'vitacare_crm_feature_instagram', '1', false );
 	}
 
 	public static function disconnect(): void {
@@ -374,7 +437,10 @@ final class Vitacare_Crm_Facebook_Oauth {
 		delete_option( self::OPTION_USER_TOKEN );
 		delete_option( self::OPTION_CONNECTED_AT );
 		delete_option( self::OPTION_PAGES_CACHE );
+		delete_option( self::OPTION_IG_ID );
+		delete_option( self::OPTION_IG_USERNAME );
 		update_option( 'vitacare_crm_feature_facebook', '', false );
+		update_option( 'vitacare_crm_feature_instagram', '', false );
 	}
 
 	public static function render_page(): void {
@@ -408,6 +474,13 @@ final class Vitacare_Crm_Facebook_Oauth {
 					echo '<div class="notice notice-error"><p>' . esc_html( $sub->get_error_message() ) . '</p></div>';
 				} else {
 					echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Página re-suscrita a mensajes de la app.', 'vitacare-crm' ) . '</p></div>';
+				}
+			} elseif ( $action === 'refresh_ig' ) {
+				if ( self::is_connected() ) {
+					self::refresh_instagram_account( self::get_page_id(), self::get_page_token() );
+					echo self::get_ig_id() !== ''
+						? '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Cuenta Instagram detectada y canal activado.', 'vitacare-crm' ) . '</p></div>'
+						: '<div class="notice notice-warning"><p>' . esc_html__( 'La Página conectada no tiene una cuenta profesional de Instagram vinculada.', 'vitacare-crm' ) . '</p></div>';
 				}
 			} elseif ( $action === 'connect' ) {
 				$url = self::start_oauth_url();
@@ -467,6 +540,14 @@ final class Vitacare_Crm_Facebook_Oauth {
 				</li>
 				<li><?php echo esc_html__( 'Producto Facebook Login (o Login for Business) activado en la App.', 'vitacare-crm' ); ?></li>
 				<li><?php echo esc_html__( 'Permisos de páginas / mensajería en modo desarrollo o revisión de app según el caso.', 'vitacare-crm' ); ?></li>
+				<li>
+					<?php
+					echo esc_html__(
+						'Para Instagram: la cuenta de Instagram debe ser profesional (empresa/creador) y estar vinculada a esta Página desde Meta Business Suite. Además, agrega el producto «Instagram» en la App de Meta for Developers y suscribe el mismo webhook (object=instagram, campo messages) a la URL de abajo.',
+						'vitacare-crm'
+					);
+					?>
+				</li>
 			</ol>
 
 			<?php if ( $connected ) : ?>
@@ -486,10 +567,30 @@ final class Vitacare_Crm_Facebook_Oauth {
 							<?php echo esc_html__( 'Canal Facebook activado', 'vitacare-crm' ); ?>
 						</span>
 					</p>
+					<p>
+						<strong><?php echo esc_html__( 'Instagram vinculado:', 'vitacare-crm' ); ?></strong>
+						<?php if ( self::is_instagram_connected() ) : ?>
+							@<?php echo esc_html( self::get_ig_username() !== '' ? self::get_ig_username() : self::get_ig_id() ); ?>
+							(<code><?php echo esc_html( self::get_ig_id() ); ?></code>)
+							<span class="vcrm-status vcrm-status-ok" style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:#d5f5e3;color:#0a6b2d;margin-left:6px">
+								<?php echo esc_html__( 'Canal Instagram activado', 'vitacare-crm' ); ?>
+							</span>
+						<?php else : ?>
+							<span class="vcrm-status" style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:#f0f0f1;color:#646970">
+								<?php echo esc_html__( 'Sin cuenta profesional vinculada', 'vitacare-crm' ); ?>
+							</span>
+							<span class="description"><?php echo esc_html__( 'Vincula una cuenta de Instagram profesional a esta Página en Meta Business Suite y pulsa «Buscar cuenta Instagram».', 'vitacare-crm' ); ?></span>
+						<?php endif; ?>
+					</p>
 					<form method="post" style="display:inline-block;margin-right:8px">
 						<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
 						<input type="hidden" name="fb_action" value="resubscribe" />
 						<?php submit_button( __( 'Re-suscribir Página a webhooks', 'vitacare-crm' ), 'secondary', 'submit', false ); ?>
+					</form>
+					<form method="post" style="display:inline-block;margin-right:8px">
+						<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
+						<input type="hidden" name="fb_action" value="refresh_ig" />
+						<?php submit_button( __( 'Buscar cuenta Instagram', 'vitacare-crm' ), 'secondary', 'submit', false ); ?>
 					</form>
 					<form method="post" style="display:inline-block;margin-right:8px">
 						<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>

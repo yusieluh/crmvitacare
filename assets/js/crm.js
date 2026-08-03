@@ -253,13 +253,18 @@
 		el.btnReopen.hidden = !isClosed;
 		var canSend =
 			!isClosed &&
-			(conv.channel === 'whatsapp' || conv.channel === 'facebook' || conv.channel === 'email');
+			(conv.channel === 'whatsapp' ||
+				conv.channel === 'facebook' ||
+				conv.channel === 'instagram' ||
+				conv.channel === 'email');
 		el.composerInput.disabled = !canSend;
 		el.btnSend.disabled = !canSend || !el.composerInput.value.trim();
 		if (conv.channel === 'whatsapp') {
 			el.composerHint.textContent = t('hintWa', 'Solo texto · ventana 24 h de WhatsApp');
 		} else if (conv.channel === 'facebook') {
 			el.composerHint.textContent = t('hintFb', 'Messenger · ventana 24 h · solo texto');
+		} else if (conv.channel === 'instagram') {
+			el.composerHint.textContent = t('hintIg', 'Instagram Direct · ventana 24 h · solo texto');
 		} else if (conv.channel === 'email') {
 			el.composerHint.textContent = t('hintEmail', 'Respuesta por Gmail · texto');
 		} else {
@@ -462,7 +467,7 @@
 		el.btnSend.addEventListener('click', sendMessage);
 		el.composerInput.addEventListener('input', function () {
 			var ch = state.selected && state.selected.channel;
-			var can = ch === 'whatsapp' || ch === 'facebook' || ch === 'email';
+			var can = ch === 'whatsapp' || ch === 'facebook' || ch === 'instagram' || ch === 'email';
 			el.btnSend.disabled =
 				state.sending ||
 				!el.composerInput.value.trim() ||

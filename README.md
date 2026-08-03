@@ -1,12 +1,12 @@
 # VITACARE CRM
 
-Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Facebook Messenger, Gmail) y gestión de conversaciones.
+Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Facebook Messenger, Instagram Direct, Gmail) y gestión de conversaciones.
 
 | | |
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.0.0** |
+| **Versión** | **1.1.0** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,13 +21,14 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.0.0
+## Qué incluye v1.1.0
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API)
 - Facebook: OAuth, elegir Página, Messenger in/out
+- Instagram Direct: cuenta profesional vinculada a la Página, in/out (misma Página, mismo token)
 - Gmail: OAuth, sync INBOX, responder desde bandeja
-- Admin: Cuentas, WhatsApp Coexistence, Facebook, Gmail, Credenciales
+- Admin: Cuentas, WhatsApp Coexistence, Facebook (+ estado Instagram), Gmail, Credenciales
 
 ## Instalación
 
@@ -68,4 +69,4 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 
 ## Siguiente trabajo
 
-Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (C-3 Instagram, PR-6 media, C-6 TikTok, despliegue prod).
+Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (PR-6 media, C-6 TikTok, despliegue prod).

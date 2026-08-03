@@ -221,6 +221,8 @@ final class Vitacare_Crm_Rest {
 			$result = Vitacare_Crm_Channel_Whatsapp::send_text( $id, $text );
 		} elseif ( $channel === 'facebook' ) {
 			$result = Vitacare_Crm_Channel_Messenger::send_text( $id, $text );
+		} elseif ( $channel === 'instagram' ) {
+			$result = Vitacare_Crm_Channel_Instagram::send_text( $id, $text );
 		} elseif ( $channel === 'email' ) {
 			$result = Vitacare_Crm_Gmail::send_text( $id, $text );
 		} else {

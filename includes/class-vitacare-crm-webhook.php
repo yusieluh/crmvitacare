@@ -116,7 +116,7 @@ final class Vitacare_Crm_Webhook {
 			}
 
 			if ( $object === 'page' ) {
-				if ( Vitacare_Crm_Settings::flag( 'facebook' ) || Vitacare_Crm_Settings::flag( 'instagram' ) ) {
+				if ( Vitacare_Crm_Settings::flag( 'facebook' ) ) {
 					$fb = Vitacare_Crm_Channel_Messenger::handle_payload( $payload );
 					$stats['messages'] += $fb['messages'];
 					$stats['statuses'] += $fb['statuses'];
@@ -126,7 +126,18 @@ final class Vitacare_Crm_Webhook {
 				}
 			}
 
-			if ( $object !== '' && $object !== 'whatsapp_business_account' && $object !== 'page' ) {
+			if ( $object === 'instagram' ) {
+				if ( Vitacare_Crm_Settings::flag( 'instagram' ) ) {
+					$ig = Vitacare_Crm_Channel_Instagram::handle_payload( $payload );
+					$stats['messages'] += $ig['messages'];
+					$stats['statuses'] += $ig['statuses'];
+					$stats['skipped']  += $ig['skipped'];
+				} else {
+					++$stats['skipped'];
+				}
+			}
+
+			if ( $object !== '' && $object !== 'whatsapp_business_account' && $object !== 'page' && $object !== 'instagram' ) {
 				++$stats['skipped'];
 			}
 

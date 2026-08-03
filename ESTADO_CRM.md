@@ -11,10 +11,10 @@
 | **Clone local típico** | `C:\Users\User\Documents\crmvitacare` |
 | **Sitio (raíz — NO TOCAR)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Plugin** | `vitacare-crm` **v1.0.0** |
-| **DB schema** | **v2** (`vitacare_crm_db_version`) |
+| **Plugin** | `vitacare-crm` **v1.1.0** |
+| **DB schema** | **v2** (`vitacare_crm_db_version`) — sin cambios de esquema en C-3 (canal es texto libre) |
 | **Última actualización docs** | 2026-08-03 |
-| **Último commit de referencia** | `67658d6` (Gmail C-5) + este commit de handoff |
+| **Último commit de referencia** | C-3 Instagram (este commit) |
 
 ---
 
@@ -43,7 +43,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 
 ---
 
-## 3. Estado actual del código (v1.0.0) — YA EN GITHUB
+## 3. Estado actual del código (v1.1.0) — YA EN GITHUB
 
 ### 3.1 Entregado y mergeado en `main`
 
@@ -59,7 +59,8 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 | C-7 Coexistence UI | 0.7.0 | Checklist WA oficial (sin QR ilegal) |
 | C-2 Facebook OAuth | 0.8.0 | Login Meta + **selector de Página** |
 | C-4 Messenger | 0.9.0 | In/out Facebook Page en bandeja |
-| **C-5 Gmail** | **1.0.0** | OAuth Google, sync INBOX, envío desde bandeja |
+| C-5 Gmail | 1.0.0 | OAuth Google, sync INBOX, envío desde bandeja |
+| **C-3 Instagram** | **1.1.0** | Cuenta profesional vinculada a la Página, webhook `object=instagram`, in/out Graph, bandeja |
 
 ### 3.2 Canales en la bandeja
 
@@ -67,8 +68,8 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 |---|---|---|---|
 | WhatsApp | ✅ webhook | ✅ Graph | Credenciales + Coexistence (asistente admin) |
 | Facebook Messenger | ✅ webhook page | ✅ page token | OAuth + elegir Página |
+| Instagram Direct | ✅ webhook instagram | ✅ Graph (`{ig-id}/messages`) | Misma OAuth/Página de Facebook; requiere cuenta IG profesional vinculada |
 | Gmail (`email`) | ✅ cron ~5 min | ✅ Gmail API | OAuth Google |
-| Instagram | ❌ | ❌ | Pendiente C-3 |
 | TikTok | ❌ | ❌ | Pendiente C-6 (DMs solo si API oficial) |
 
 ### 3.3 Estructura de archivos (plugin = raíz del repo)
@@ -77,7 +78,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 crmvitacare/
 ├── ESTADO_CRM.md              ← LEER PRIMERO
 ├── README.md
-├── vitacare-crm.php           ← bootstrap v1.0.0
+├── vitacare-crm.php           ← bootstrap v1.1.0
 ├── uninstall.php
 ├── bin/package-plugin.ps1
 ├── docs/
@@ -101,7 +102,8 @@ crmvitacare/
 │   ├── class-vitacare-crm-conversations-repo.php
 │   ├── class-vitacare-crm-messages-repo.php
 │   ├── class-vitacare-crm-channel-whatsapp.php
-│   └── class-vitacare-crm-channel-messenger.php
+│   ├── class-vitacare-crm-channel-messenger.php
+│   └── class-vitacare-crm-channel-instagram.php
 ├── template-parts/crm-page.php, crm-shell.php
 ├── assets/css/crm.css, assets/js/crm.js
 └── tests/test-webhook-hmac.php
@@ -111,7 +113,7 @@ crmvitacare/
 
 | Ruta | Uso |
 |---|---|
-| `GET/POST /wp-json/vitacare-crm/v1/webhooks/meta` | Verify + inbound Meta (WA + Page) |
+| `GET/POST /wp-json/vitacare-crm/v1/webhooks/meta` | Verify + inbound Meta (WA + Page + Instagram) |
 | `GET /wp-json/vitacare-crm/v1/conversations` | Lista (auth + cap `vitacare_crm_access`) |
 | `GET/POST .../conversations/{id}/messages` | Hilo / envío |
 | `PATCH .../conversations/{id}` | status, assigned_to, wp_user_id |
@@ -142,6 +144,7 @@ crmvitacare/
 | D-12 | OAuth “Conectar cuenta” para Meta/Google/TikTok |
 | D-13 | Secrets fuera de Git; opcional `VITACARE_CRM_ENCRYPTION_KEY` |
 | D-14–16 | TikTok solo API oficial; DMs solo si existen |
+| D-17 | Instagram no tiene OAuth propio: usa el mismo token de la Página de Facebook ya conectada (`instagram_business_account`); requiere cuenta IG profesional vinculada a esa Página en Meta Business Suite |
 
 ---
 
@@ -149,18 +152,17 @@ crmvitacare/
 
 | Prioridad | ID | Trabajo |
 |---|---|---|
-| Alta | **Ops** | Instalar ZIP v1.0.0 en WP prod; configurar Meta + Google; probar `/crm` |
-| Alta | **C-3** | Instagram (Page + IG pro, messaging) |
-| Media | **PR-6** | Media WhatsApp (descarga, deny-direct, servir con cap) |
+| Alta | **Ops** | Instalar ZIP v1.1.0 en WP prod; configurar Meta + Google; agregar producto Instagram en la App de Meta; probar `/crm` |
+| Media | **PR-6** | Media WhatsApp/Instagram (descarga, deny-direct, servir con cap) |
 | Media | **C-6** | TikTok OAuth + spike DM/comentarios/métricas |
 | Baja | Polish | Leads pipeline (DB v3), roles staff, notificaciones |
 
 ### Siguiente paso de ingeniería recomendado
 
 1. `git pull` del repo.  
-2. Empaquetar e instalar en Hostinger si aún no está v1.0.0.  
-3. Completar Coexistence WA + Facebook Page + Gmail en admin.  
-4. Código: **C-3 Instagram** o **PR-6 media WA**.
+2. Empaquetar e instalar en Hostinger si aún no está v1.1.0.  
+3. Completar Coexistence WA + Facebook Page (y cuenta Instagram vinculada) + Gmail en admin.  
+4. Código: **PR-6 media** (WhatsApp + Instagram) o **C-6 TikTok**.
 
 ---
 
@@ -190,7 +192,8 @@ cd C:\Users\User\Documents\crmvitacare && git pull origin main
 | 2026-08-03 | C-2 Facebook Página | `4a6f13f` |
 | 2026-08-03 | C-4 Messenger | `053eca2` |
 | 2026-08-03 | C-5 Gmail v1.0.0 | `67658d6` |
-| 2026-08-03 | **Handoff docs CONTINUAR + ESTADO completo** | este update |
+| 2026-08-03 | Handoff docs CONTINUAR + ESTADO completo | `38aca98` |
+| 2026-08-03 | **C-3 Instagram v1.1.0** (OAuth Página→IG, webhook, in/out, UI) | este commit |
 
 ---
 

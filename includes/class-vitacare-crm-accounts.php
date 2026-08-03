@@ -115,15 +115,7 @@ final class Vitacare_Crm_Accounts {
 				'flag'        => Vitacare_Crm_Settings::flag( 'whatsapp' ),
 			),
 			'facebook'  => self::facebook_card_status(),
-			'instagram' => array(
-				'name'         => 'Instagram',
-				'level'        => 'off',
-				'label'        => __( 'Pendiente', 'vitacare-crm' ),
-				'detail'       => __( 'OAuth + cuenta profesional vinculada a Página (C-3).', 'vitacare-crm' ),
-				'action_url'   => '',
-				'action_label' => '',
-				'flag'         => Vitacare_Crm_Settings::flag( 'instagram' ),
-			),
+			'instagram' => self::instagram_card_status(),
 			'gmail'     => self::gmail_card_status(),
 			'tiktok'    => array(
 				'name'         => 'TikTok',
@@ -201,6 +193,43 @@ final class Vitacare_Crm_Accounts {
 			'action_url'   => admin_url( 'admin.php?page=vitacare-crm-facebook' ),
 			'action_label' => __( 'Conectar Facebook', 'vitacare-crm' ),
 			'flag'         => Vitacare_Crm_Settings::flag( 'facebook' ),
+		);
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private static function instagram_card_status(): array {
+		$connected = class_exists( 'Vitacare_Crm_Facebook_Oauth' ) && Vitacare_Crm_Facebook_Oauth::is_instagram_connected();
+		if ( $connected ) {
+			$username = Vitacare_Crm_Facebook_Oauth::get_ig_username();
+			return array(
+				'name'         => 'Instagram',
+				'level'        => 'ok',
+				'label'        => __( 'Cuenta vinculada', 'vitacare-crm' ),
+				'detail'       => $username !== ''
+					? sprintf(
+						/* translators: %s: instagram username */
+						__( 'Cuenta: @%s · vinculada a la Página de Facebook conectada', 'vitacare-crm' ),
+						$username
+					)
+					: __( 'Cuenta profesional vinculada a la Página conectada.', 'vitacare-crm' ),
+				'action_url'   => admin_url( 'admin.php?page=vitacare-crm-facebook' ),
+				'action_label' => __( 'Administrar en Facebook', 'vitacare-crm' ),
+				'flag'         => true,
+			);
+		}
+		$fb_connected = class_exists( 'Vitacare_Crm_Facebook_Oauth' ) && Vitacare_Crm_Facebook_Oauth::is_connected();
+		return array(
+			'name'         => 'Instagram',
+			'level'        => 'off',
+			'label'        => __( 'Pendiente', 'vitacare-crm' ),
+			'detail'       => $fb_connected
+				? __( 'Página de Facebook conectada, pero sin cuenta profesional de Instagram vinculada.', 'vitacare-crm' )
+				: __( 'Conecta primero Facebook: la cuenta de Instagram se administra a través de la misma Página.', 'vitacare-crm' ),
+			'action_url'   => admin_url( 'admin.php?page=vitacare-crm-facebook' ),
+			'action_label' => $fb_connected ? __( 'Buscar cuenta Instagram', 'vitacare-crm' ) : __( 'Conectar Facebook', 'vitacare-crm' ),
+			'flag'         => Vitacare_Crm_Settings::flag( 'instagram' ),
 		);
 	}
 
