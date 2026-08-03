@@ -44,10 +44,18 @@ vitacare-crm/
 
 ## Estado
 
-- Plugin **v0.6.0**: WhatsApp + **bandeja visual** en https://vitacareec.org/crm
-- **Siguiente:** PR-6 media; probar en producción con Meta.
+- Plugin **v0.7.0**: bandeja + **Cuentas conectadas** + **asistente WhatsApp Coexistence** (oficial).
+- **Siguiente:** C-2 Facebook OAuth + Página; C-5 Gmail; PR-6 media.
 
 Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
+
+### Admin WordPress
+
+| Menú | Uso |
+|---|---|
+| **CRM VITACARE → Cuentas conectadas** | Estado de cada canal |
+| **WhatsApp (oficial)** | Checklist Coexistence (sin QR no oficial) |
+| **Credenciales** | Tokens Meta / flags |
 
 ### API rápida (autenticado)
 

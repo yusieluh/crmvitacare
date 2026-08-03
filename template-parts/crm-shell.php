@@ -38,8 +38,11 @@ $current    = wp_get_current_user();
 		<div class="vcrm-topbar-actions">
 			<span class="vcrm-user"><?php echo esc_html( $current->display_name ? $current->display_name : $current->user_login ); ?></span>
 			<?php if ( current_user_can( 'manage_options' ) ) : ?>
-				<a class="vcrm-btn vcrm-btn-ghost" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings' ) ); ?>">
-					<?php echo esc_html__( 'Ajustes', 'vitacare-crm' ); ?>
+				<a class="vcrm-btn vcrm-btn-ghost" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-accounts' ) ); ?>">
+					<?php echo esc_html__( 'Cuentas', 'vitacare-crm' ); ?>
+				</a>
+				<a class="vcrm-btn vcrm-btn-ghost" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-whatsapp' ) ); ?>">
+					<?php echo esc_html__( 'WhatsApp', 'vitacare-crm' ); ?>
 				</a>
 			<?php endif; ?>
 			<a class="vcrm-btn vcrm-btn-ghost" href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>">

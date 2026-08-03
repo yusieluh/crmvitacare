@@ -118,14 +118,23 @@ final class Vitacare_Crm_Settings {
 	}
 
 	public static function register_menu(): void {
+		// Menú principal apunta a Cuentas conectadas (C-1); credenciales en submenú.
 		add_menu_page(
 			__( 'CRM VITACARE', 'vitacare-crm' ),
 			__( 'CRM VITACARE', 'vitacare-crm' ),
 			'manage_options',
-			'vitacare-crm-settings',
-			array( __CLASS__, 'render_page' ),
+			'vitacare-crm-accounts',
+			array( 'Vitacare_Crm_Accounts', 'render_accounts' ),
 			'dashicons-format-chat',
 			58
+		);
+		add_submenu_page(
+			'vitacare-crm-accounts',
+			__( 'Credenciales', 'vitacare-crm' ),
+			__( 'Credenciales', 'vitacare-crm' ),
+			'manage_options',
+			'vitacare-crm-settings',
+			array( __CLASS__, 'render_page' )
 		);
 	}
 
@@ -210,29 +219,31 @@ final class Vitacare_Crm_Settings {
 		$ready   = self::whatsapp_webhook_ready();
 		?>
 		<div class="wrap">
-			<h1><?php echo esc_html__( 'CRM VITACARE — Ajustes', 'vitacare-crm' ); ?></h1>
+			<h1><?php echo esc_html__( 'CRM VITACARE — Credenciales', 'vitacare-crm' ); ?></h1>
 			<p>
 				<?php
 				echo esc_html__(
-					'Credenciales Meta y flags de canal. El panel de conversaciones está en /crm. Este plugin no modifica la raíz del sitio ni vitacare-core/tema.',
+					'Credenciales Meta y flags de canal. Preferible completar el asistente WhatsApp Coexistence y, más adelante, OAuth por canal. No modifica la raíz del sitio ni vitacare-core/tema.',
 					'vitacare-crm'
 				);
 				?>
 			</p>
 			<p>
-				<strong><?php echo esc_html__( 'Panel CRM:', 'vitacare-crm' ); ?></strong>
-				<a href="<?php echo esc_url( home_url( '/' . VITACARE_CRM_PAGE_SLUG . '/' ) ); ?>">https://vitacareec.org/crm</a>
-				&nbsp;|&nbsp;
+				<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-accounts' ) ); ?>"><?php echo esc_html__( 'Cuentas conectadas', 'vitacare-crm' ); ?></a>
+				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-whatsapp' ) ); ?>"><?php echo esc_html__( 'Asistente WhatsApp', 'vitacare-crm' ); ?></a>
+				<a class="button" href="<?php echo esc_url( home_url( '/' . VITACARE_CRM_PAGE_SLUG . '/' ) ); ?>"><?php echo esc_html__( 'Bandeja /crm', 'vitacare-crm' ); ?></a>
+			</p>
+			<p>
 				<strong><?php echo esc_html__( 'Webhook Meta:', 'vitacare-crm' ); ?></strong>
 				<code><?php echo esc_html( $webhook ); ?></code>
 			</p>
 			<p>
 				<?php if ( $ready ) : ?>
 					<span class="dashicons dashicons-yes-alt" style="color:green"></span>
-					<?php echo esc_html__( 'WhatsApp: flag ON y secret/verify token configurados (listo para PR-3 inbound).', 'vitacare-crm' ); ?>
+					<?php echo esc_html__( 'WhatsApp: flag ON y secret/verify token configurados.', 'vitacare-crm' ); ?>
 				<?php else : ?>
 					<span class="dashicons dashicons-warning" style="color:#dba617"></span>
-					<?php echo esc_html__( 'WhatsApp: incompleto (activa el flag y define App Secret + Verify Token). Los webhooks responderán 403.', 'vitacare-crm' ); ?>
+					<?php echo esc_html__( 'WhatsApp: incompleto (flag + App Secret + Verify Token). Webhooks → 403.', 'vitacare-crm' ); ?>
 				<?php endif; ?>
 			</p>
 
