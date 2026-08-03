@@ -44,16 +44,20 @@ vitacare-crm/
 
 ## Estado
 
-- **Fase 1** (esqueleto): en `main`.
-- **Siguiente:** hardening (Fase 1H / PR-0) y, en paralelo, preparación de App Meta para WhatsApp.
+- **Fase 1** esqueleto + **Fase 1H (PR-0) hardening** — plugin **v0.1.1** en `main`.
+- **Siguiente:** PR-1 settings Meta; App Meta para WhatsApp.
 
-Detalle de fases y changelog: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
+Detalle y changelog: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
 
 ## Instalación (resumen)
 
-1. Clonar o descargar este repo.
-2. Copiar la carpeta del plugin a `wp-content/plugins/vitacare-crm/` (o instalar ZIP).
-3. Activar **VITACARE CRM** en el admin de WordPress.
-4. Abrir https://vitacareec.org/crm (requiere usuario con capability `vitacare_crm_access`; por defecto administradores).
+1. Clonar este repo **o** generar ZIP:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\bin\package-plugin.ps1
+   ```
+   → `dist/vitacare-crm.zip`
+2. En WordPress: Plugins → Añadir → Subir plugin (o copiar a `wp-content/plugins/vitacare-crm/`).
+3. Activar **VITACARE CRM**.
+4. Abrir **https://vitacareec.org/crm** (login obligatorio; capability `vitacare_crm_access` para administradores).
 
-No hace falta modificar otros plugins ni el tema.
+**No** modifica la raíz del sitio ni otros plugins/temas.

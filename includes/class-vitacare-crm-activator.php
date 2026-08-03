@@ -5,7 +5,7 @@ final class Vitacare_Crm_Activator {
 
 	public static function activate(): void {
 		self::install_tables();
-		self::install_capability();
+		self::ensure_capability();
 		self::install_page();
 	}
 
@@ -14,7 +14,10 @@ final class Vitacare_Crm_Activator {
 		// mensajes son datos reales de negocio, no configuración descartable.
 	}
 
-	private static function install_tables(): void {
+	/**
+	 * Crea/actualiza tablas base (dbDelta idempotente). Usado en activate y upgrader.
+	 */
+	public static function install_tables(): void {
 		global $wpdb;
 		$charset_collate = $wpdb->get_charset_collate();
 		$conversations    = $wpdb->prefix . 'vitacare_crm_conversations';
@@ -61,13 +64,12 @@ final class Vitacare_Crm_Activator {
 	}
 
 	/**
-	 * Capacidad propia del CRM (no toca capabilities de vitacare-core). Se
-	 * asigna solo al Administrator nativo por ahora; ampliar a supervisor
-	 * es una decisión pendiente del usuario.
+	 * Capacidad propia del CRM (no toca capabilities de vitacare-core).
+	 * Solo Administrator nativo por ahora.
 	 */
-	private static function install_capability(): void {
+	public static function ensure_capability(): void {
 		$admin = get_role( 'administrator' );
-		if ( $admin ) {
+		if ( $admin && ! $admin->has_cap( VITACARE_CRM_CAPABILITY ) ) {
 			$admin->add_cap( VITACARE_CRM_CAPABILITY );
 		}
 	}
@@ -79,11 +81,11 @@ final class Vitacare_Crm_Activator {
 		}
 		wp_insert_post(
 			array(
-				'post_title'   => 'CRM',
-				'post_name'    => VITACARE_CRM_PAGE_SLUG,
-				'post_status'  => 'publish',
-				'post_type'    => 'page',
-				'post_content' => '',
+				'post_title'     => 'CRM',
+				'post_name'      => VITACARE_CRM_PAGE_SLUG,
+				'post_status'    => 'publish',
+				'post_type'      => 'page',
+				'post_content'   => '',
 				'comment_status' => 'closed',
 				'ping_status'    => 'closed',
 			)

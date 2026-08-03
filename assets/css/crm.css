@@ -1,7 +1,104 @@
-/* VITACARE CRM — reutiliza variables del tema (--wine, --teal, --shadow, etc.)
-   definidas en vitacare-theme/assets/css/main.css. No se redefinen aquí para
-   no duplicar ni desincronizar la identidad visual VITACARE. */
+/**
+ * VITACARE CRM — estilos propios con fallbacks.
+ * Prefiere variables del tema (--wine, --teal, etc.) si existen;
+ * no modifica archivos de vitacare-theme.
+ */
+
+.vcrm-container {
+	max-width: 1100px;
+	margin-left: auto;
+	margin-right: auto;
+	padding-left: 1rem;
+	padding-right: 1rem;
+}
+
+.vcrm-hero {
+	padding: 1.5rem 0 0.5rem;
+}
+
+.vcrm-hero h1 {
+	margin: 0.25rem 0;
+	font-size: 1.75rem;
+	line-height: 1.2;
+	color: var(--wine, #6b1e3c);
+}
+
+.vcrm-hero p {
+	margin: 0.35rem 0 0;
+	color: var(--text-muted, #555);
+}
+
+.vcrm-breadcrumb {
+	font-size: 0.875rem;
+	color: var(--text-muted, #666);
+}
+
+.vcrm-breadcrumb a {
+	color: var(--teal, #0d7377);
+	text-decoration: none;
+}
+
+.vcrm-section {
+	padding: 1rem 0 2rem;
+}
+
+.vcrm-metrics,
+.metrics.vcrm-metrics {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: 0.75rem;
+}
+
+.vcrm-metric,
+.metric.vcrm-metric {
+	background: var(--card-bg, #fff);
+	border: 1px solid var(--border, #e5e5e5);
+	border-radius: 8px;
+	padding: 1rem;
+	box-shadow: var(--shadow, 0 1px 3px rgba(0, 0, 0, 0.06));
+}
+
+.vcrm-m-label,
+.m-label {
+	font-size: 0.8rem;
+	color: var(--text-muted, #666);
+	margin-bottom: 0.35rem;
+}
+
+.vcrm-m-value,
+.m-value {
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: var(--wine, #6b1e3c);
+	line-height: 1.1;
+}
+
+.vcrm-card,
+.card.vcrm-card {
+	background: var(--card-bg, #fff);
+	border: 1px solid var(--border, #e5e5e5);
+	border-radius: 8px;
+	padding: 1.25rem 1.5rem;
+	box-shadow: var(--shadow, 0 1px 3px rgba(0, 0, 0, 0.06));
+}
 
 .admin-section-title {
 	margin-top: 0;
+	margin-bottom: 0.75rem;
+	font-size: 1.15rem;
+	color: var(--wine, #6b1e3c);
+}
+
+.vcrm-notice,
+.vitacare-notice {
+	padding: 1rem 1.25rem;
+	border-radius: 8px;
+	border: 1px solid var(--border, #e5e5e5);
+	background: var(--notice-bg, #f8f6f4);
+}
+
+.vcrm-muted {
+	font-size: 0.9rem;
+	color: var(--text-muted, #666);
+	margin-bottom: 0;
 }
