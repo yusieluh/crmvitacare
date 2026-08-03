@@ -7,7 +7,8 @@
 1. **`ESTADO_CRM.md` es la fuente de información** del proyecto. Se actualiza con **cada cambio** y **cada plan**.
 2. El CRM corre en **https://vitacareec.org/crm** — **no se toca** la raíz ni el sistema instalado.
 3. Todo se documenta en el repo y se hace **push a GitHub** al completar cada tarea.
-4. Handoff entre sesiones/IAs: [`CONTINUAR.md`](./CONTINUAR.md).
+4. **Rama única: `main`.** Grok y Claude Code comparten el mismo repo y se turnan sobre `main` — nunca ramas separadas por herramienta o sesión, para no duplicar trabajo ni generar conflictos de merge entre asistentes.
+5. Handoff entre sesiones/IAs: [`CONTINUAR.md`](./CONTINUAR.md).
 
 ---
 

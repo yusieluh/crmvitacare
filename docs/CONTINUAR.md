@@ -5,6 +5,8 @@ Documento para **cualquier sesión futura**: Grok Build, **Claude Code**, Cursor
 **Repo:** https://github.com/yusieluh/crmvitacare  
 **Fuente de verdad:** [`../ESTADO_CRM.md`](../ESTADO_CRM.md) (siempre leer primero)
 
+> **Una sola rama: `main`.** Grok y Claude Code trabajan alternándose sobre el mismo repo. Nunca crear una rama nueva para "tu" sesión — eso es lo que produce duplicados y conflictos. Siempre `git pull origin main` antes de tocar código y `git push` a `main` al terminar cada tarea, con `ESTADO_CRM.md` actualizado en el mismo commit (o uno inmediatamente después). Si ves una rama que no sea `main` en el remoto, no la uses: es un resto de una sesión anterior que ya quedó fusionado en `main`.
+
 ---
 
 ## 1. Arranque en 2 minutos

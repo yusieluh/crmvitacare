@@ -28,6 +28,7 @@
    - WhatsApp: **Cloud API + Coexistence** (celular + CRM).  
    - **Prohibido:** Baileys / whatsapp-web.js / QR “dispositivo vinculado” no oficial (riesgo de ban del número).
 6. Al **completar cada tarea**: actualizar este archivo → README/PROCESS si aplica → **commit + push** a `main`.
+7. **Una sola rama de trabajo: `main`.** No crear ramas `feature/*` ni de sesión — todo commit va directo a `main`. Si alguna herramienta (Grok, Claude Code, otra) encuentra una rama distinta a `main` en el remoto, es residual: no tiene código que `main` no tenga ya, ignorarla o borrarla, nunca seguir desarrollando ahí. Esto es lo que permite que Grok y Claude Code se turnen sobre el mismo repo sin duplicar trabajo ni generar conflictos de merge.
 
 Detalle operativo: [`docs/PROCESS.md`](./docs/PROCESS.md) · Handoff para otra IA: [`docs/CONTINUAR.md`](./docs/CONTINUAR.md)
 
