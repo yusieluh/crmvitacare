@@ -18,165 +18,162 @@
 ## Reglas inviolables
 
 1. **`ESTADO_CRM.md` = fuente de información**
-2. CRM **solo** en **https://vitacareec.org/crm** — no tocar la raíz del sitio
+2. CRM **solo** en **https://vitacareec.org/crm** — no tocar la raíz
 3. **No modificar** el sistema instalado (`vitacare-core`, tema, WooCommerce, etc.)
 
 ---
 
-## Requisitos de producto — conexión de cuentas (2026-08-03)
+## Decisiones de producto confirmadas (Yusiel / VITACARE — 2026-08-03)
 
-**Solicitado por VITACARE / Yusiel.** Objetivo UX: el staff **no pega tokens a mano**; el CRM **pide acceso a la cuenta** del proveedor (OAuth / “Continuar con…”) y guarda credenciales de forma segura.
+### 1. WhatsApp — “dispositivo vinculado” con QR + no bloquear número
 
-### 1. Facebook
+**Deseo del negocio:**
 
-| Requisito | Enfoque oficial |
-|---|---|
-| Integración **directa** solicitando acceso a la cuenta | **Facebook Login for Business** / Meta OAuth (scopes de páginas y mensajería) |
-| Al conectar, **elegir la Página** que administra el perfil | Pantalla post-OAuth: listar Pages del usuario (`/me/accounts`) y **seleccionar una** (Page ID + page access token de larga duración) |
-| Mensajería | Facebook Messenger vía Graph API + webhooks (mismo patrón que ya tenemos en `/webhooks/meta`) |
+- Poder **conectar como dispositivo vinculado** desde la app WhatsApp Business **escaneando un código QR**.
+- Mantener el celular y el CRM funcionando, **con cuidado** para no bloquear la app ni el número.
 
-**UI prevista (admin / CRM Ajustes → Conectar Facebook):**  
-`[ Conectar con Facebook ]` → login Meta → **selector de Página** → confirmar → canal activo.
+**Realidad técnica y de política Meta (obligatoria en este repo):**
 
-### 2. Instagram
+| Camino | ¿Cumple el deseo del QR? | ¿Oficial / seguro para el número? | En este proyecto |
+|---|---|---|---|
+| **A. Cloud API + Coexistence (Meta 2025+)** | No es un QR de “WhatsApp Web”, pero **sí** deja la app del teléfono operativa **y** el CRM (API) al mismo tiempo | **Sí** — soportado por Meta | **Implementación principal (ya en curso PR-1…5)** |
+| **B. QR multi-dispositivo tipo WhatsApp Web** vía Baileys / whatsapp-web.js / forks “Evolution” no oficiales | Sí se parece al QR de vincular dispositivo | **No** — viola Términos de Servicio; Meta detecta y **bloquea números** con frecuencia; inaceptable para salud/pacientes | **No se implementa en el código de este CRM** |
+| **C. Flujo QR embebido / partner oficial** si Meta lo documenta para ISV | Solo si Meta lo publica como oficial | Sí, si es documentación Meta vigente | Evaluar e implementar **solo** si aparece API oficial |
 
-| Requisito | Enfoque oficial |
-|---|---|
-| Acceso a la cuenta | OAuth Meta; cuenta IG **Professional** vinculada a una **Facebook Page** |
-| Mensajería | Instagram Messaging API (Graph) + webhooks Meta |
-
-Flujo típico: conectar Facebook (o IG) → elegir Page → elegir/vincular cuenta Instagram asociada a esa Page.
-
-### 3. Google
-
-| Requisito | Enfoque oficial |
-|---|---|
-| Acceso a la cuenta | **Google OAuth 2.0** (“Iniciar sesión con Google”) |
-
-**Pendiente de confirmar (OQ-G1):** ¿qué producto de Google se integra?
-
-- **Google Business Profile** (reseñas / mensajes de ficha), y/o  
-- **Gmail** (correo entrante/saliente), y/o  
-- **Google Ads / Analytics** (no mensajería CRM)
-
-Hasta definir OQ-G1 no se implementa el conector Google.
-
-### 4. TikTok
-
-| Requisito | Enfoque oficial |
-|---|---|
-| Acceso a la cuenta | **TikTok Login Kit / TikTok for Business OAuth** |
-
-**Limitación conocida:** TikTok **no** ofrece un webhook de mensajería DM equivalente a Meta. La integración “directa por cuenta” puede servir para:
-
-- autenticar cuenta Business / mostrar perfil, y/o  
-- APIs de contenido/publicidad según permisos aprobados por TikTok,
-
-pero **no** garantiza bandeja de DMs 1:1 como WhatsApp/Messenger. Sigue en investigación (fase 7) con UX de “Conectar TikTok” cuando haya API usable.
-
-### 5. WhatsApp — Cloud API + celular (y el tema del código QR)
-
-| Requisito del negocio | Qué se puede hacer **oficialmente** |
-|---|---|
-| Seguir usando **WhatsApp Business en el celular** y el CRM a la vez | **WhatsApp Cloud API + Coexistence** (Meta, 2025+): el número se gestiona con la app del teléfono **y** la API en paralelo, sincronizados. **Ya es la base de PR-1…PR-5.** |
-| “Escanear **código QR** y agregar como **dispositivo vinculado**” al estilo WhatsApp Web | **No es el camino oficial** para un CRM en servidor. Las librerías tipo Baileys / whatsapp-web.js simulan un dispositivo vinculado: **violan Términos de Servicio de WhatsApp**, riesgo real de **bloqueo del número**, inaceptable para pacientes/salud. |
-
-#### Decisión de arquitectura (actualizada, no reabrir a la ligera)
+**Decisión de ingeniería (cerrada para el código del repo):**
 
 | ID | Decisión |
 |---|---|
-| **D-04** | WhatsApp en producción = **solo Cloud API + Coexistence** (Meta). Credenciales vía App Meta / Business Manager. |
-| **D-04b** | **Prohibido** en este proyecto: Baileys, whatsapp-web.js, Evolution API no oficial, o cualquier “vincular por QR como dispositivo” no autorizado por Meta. |
-| **D-12** | Canales Meta/Google/TikTok: conexión preferente por **OAuth “Conectar cuenta”** en el admin del CRM (no solo pegar tokens). Facebook incluye **selector de Página**. |
-| **D-13** | Tokens OAuth y page tokens: preferir `wp-config` / almacenamiento cifrado; **nunca** en Git. |
+| **D-04** | Canal WhatsApp de producción = **Cloud API + Coexistence**. |
+| **D-04b** | **No se escribe código** de cliente no oficial (Baileys, whatsapp-web.js, etc.) en `crmvitacare`. |
+| **D-04c** | UX de “vincular WhatsApp” en el CRM = **asistente Coexistence + checklist Meta** (Business Manager, número, webhooks). Si el usuario percibe “vincular el teléfono”, se explica en UI que el vínculo oficial es Coexistence, no un QR Web inventado. |
+| **D-04d** | Mitigación de bloqueo: solo API oficial, rate limits, sin spam, ventana 24h respetada, tokens de system user, no multi-sesión no oficial. |
 
-#### Cómo se “parece” al QR sin romper las reglas
+**Por qué no basta “hacerlo con cuidado” en el camino B:**  
+El riesgo de ban no se elimina con “usar poco” o “solo lectura”. Meta trata esos clientes como automatización no autorizada. Para VITACARE (pacientes / reputación / un solo número de negocio) el coste de un ban es mayor que la comodidad del QR Web.
 
-La experiencia que Meta **sí** soporta es:
+**Qué verá el staff en la UI (C-7):**
 
-1. Crear/usar App en **Meta for Developers** + **WhatsApp Business Platform**.  
-2. Activar **Coexistence** para el número que ya usa la app WhatsApp Business del celular.  
-3. El teléfono **sigue siendo el principal**; el CRM envía/recibe por Cloud API.  
-4. La “vinculación” se hace en el flujo **oficial de Meta / Business Manager**, no con un QR de WhatsApp Web generado por nuestro servidor.
-
-Si en el futuro Meta ofrece un flujo embebido con QR **oficial** documentado para partners, se evaluará e implementará **solo** ese flujo. Mientras tanto, un QR de “dispositivo vinculado” casero **no se implementará**.
-
-**Resumen para el equipo:**  
-- Facebook / Instagram / Google / TikTok → **sí**, botones “Conectar cuenta” (OAuth).  
-- Facebook → **sí**, elegir Página.  
-- WhatsApp → **sí** celular + CRM (Coexistence).  
-- WhatsApp → **no** QR no oficial tipo Web.
+1. Botón **“Conectar WhatsApp (oficial)”**.  
+2. Pasos guiados: App Meta → número → Coexistence → webhook → prueba de mensaje.  
+3. Texto claro: *el celular sigue con WhatsApp Business; el CRM no se vincula como “WhatsApp Web” no oficial.*  
+4. Estado: conectado / webhook OK / Coexistence.
 
 ---
 
-## Plan de fases
+### 2. Google — Gmail y lo necesario para el CRM
 
-### MVP técnico actual (código en `main`)
+**Confirmado (OQ-G1):** prioridad **Gmail**, más lo necesario para operación CRM.
 
-| PR | Contenido | Estado |
+| Capacidad | API / enfoque | Prioridad |
 |---|---|---|
-| 0 | Hardening | ✅ |
-| 1 | Settings Meta (tokens manuales) | ✅ v0.2.0 |
-| 2 | REST + DB v2 | ✅ |
-| 3 | WhatsApp inbound | ✅ |
-| 4 | WhatsApp outbound | ✅ |
-| 5 | Inbox UI | ✅ v0.6.0 |
-| 6 | Media WhatsApp | ⏳ |
+| **Correo entrante** (bandeja unificada) | Gmail API + OAuth (Google Cloud project, scopes `gmail.readonly` / `gmail.modify` mínimos) | Alta |
+| **Correo saliente** desde CRM | Gmail API `users.messages.send` o `wp_mail` con cuenta Google SMTP OAuth | Alta |
+| **Hilos / conversación** | Mapear `threadId` Gmail → `conversations` canal `email` | Alta |
+| **Adjuntos** | Descargar vía Gmail API; store como media CRM (PR-6 pattern) | Media |
+| **Etiquetas / no leído** | Labels Gmail opcionales (CRM propio `status` manda en UI) | Media |
+| **Contactos** | Google People API opcional para enriquecer nombre | Baja |
+| **Calendar** (citas) | Google Calendar API — solo si producto lo pide después | Fuera de MVP mail |
+| **Analytics / Ads** | No son bandeja CRM; no en C-5 v1 | Fuera |
 
-### Conectores OAuth (nuevo tramo de plan — post o en paralelo a PR-6)
+**UX:** botón **“Conectar Gmail”** (OAuth Google) en Cuentas conectadas.  
+**Seguridad:** OAuth tokens en options cifradas / no en Git; scopes mínimos; pantalla de consentimiento Google verificada si hay muchos usuarios.
+
+**Plan conector:** **C-5** (tras C-1 base de cuentas).
+
+---
+
+### 3. TikTok — chats en bandeja + comentarios + métricas + “todo lo del CRM”
+
+**Confirmado (OQ-T1):** se espera:
+
+- **Chats / DMs** en la misma bandeja del CRM  
+- **Comentarios** en videos  
+- **Métricas** de contenido / cuenta  
+- Resto útil para CRM (perfil, inbox unificado, asignación, leads)
+
+**Estado real de APIs TikTok (actualizar al implementar):**
+
+| Función deseada | Disponibilidad típica | Enfoque en el CRM |
+|---|---|---|
+| OAuth “Conectar TikTok” | **Sí** — Login Kit / TikTok for Business | **C-6** |
+| **DM / chats 1:1 en bandeja** | **Muy limitada o inexistente** en APIs públicas estables para terceros (no hay equivalente maduro a Cloud API WA / Messenger) | Fase **investigación + spike C-6a**; si no hay API de DM, UI muestra “Chats no disponibles vía API oficial” y no se finge con scraping |
+| **Comentarios en videos** | Parcial — APIs de contenido/comentarios según producto (Research / Business / Display) y **aprobación de app** | **C-6b** si scopes aprobados |
+| **Métricas** (views, likes, etc.) | Parcial — Business/Marketing APIs o export; requiere app en revisión | **C-6c** dashboard CRM o panel métricas |
+| Scraping / bots de la app TikTok | No oficial, frágil, ban de cuenta | **Prohibido** (misma lógica que WA no oficial) |
+
+**Decisión:**
+
+| ID | Decisión |
+|---|---|
+| **D-14** | TikTok se conecta solo por **API oficial OAuth**. Sin scrapers. |
+| **D-15** | Alcance TikTok se implementa **por capas**: (1) OAuth + perfil, (2) métricas/comentarios si la app es aprobada, (3) DMs **solo si** TikTok expone API de mensajería usable. |
+| **D-16** | Si DMs no existen en API, el CRM **no inventa** chats; se documenta en UI y se prioriza comentarios + métricas + leads manuales desde TikTok. |
+
+**Plan:** **C-6** (OAuth) → **C-6a** spike DM → **C-6b** comentarios → **C-6c** métricas.
+
+---
+
+## Matriz multi-canal (visión producto)
+
+| Canal | Conexión UX | Mensajería en bandeja | Extra CRM |
+|---|---|---|---|
+| **WhatsApp** | Asistente Coexistence (oficial) | ✅ Cloud API (ya) | Media PR-6 |
+| **Facebook** | OAuth + **selector de Página** | ✅ Messenger Graph | — |
+| **Instagram** | OAuth / Page + IG pro | ✅ IG Messaging | — |
+| **Gmail** | OAuth Google | ✅ hilos mail como canal `email` | Adjuntos, send |
+| **TikTok** | OAuth | ⚠️ DMs solo si API | Comentarios, métricas |
+| **QR WA Web no oficial** | — | ❌ | ❌ no en repo |
+
+---
+
+## Plan de implementación (conectores)
 
 | ID | Contenido | Estado |
 |---|---|---|
-| **C-1** | UI “Cuentas conectadas” en admin CRM (lista canales + estado) | ⏳ |
-| **C-2** | **Facebook OAuth** + **selector de Página** + guardar page token | ⏳ |
-| **C-3** | **Instagram** (cuenta vinculada a Page) + webhooks mensajería | ⏳ |
-| **C-4** | Ampliar webhook Meta para `object=page` (Messenger/IG) sobre bandeja actual | ⏳ |
-| **C-5** | **Google OAuth** (tras OQ-G1: producto exacto) | ⏳ bloqueado por OQ-G1 |
-| **C-6** | **TikTok OAuth** (scopes disponibles; sin DM si no hay API) | ⏳ |
-| **C-7** | WhatsApp: guía/asistente **Coexistence** en UI (checklist Meta; **sin** QR no oficial) | ⏳ |
-| **C-8** | Migrar settings manuales a “conectado vía OAuth” con fallback tokens | ⏳ |
+| **C-1** | UI “Cuentas conectadas” (estado por canal) | ⏳ |
+| **C-2** | Facebook OAuth + **selector de Página** | ⏳ |
+| **C-3** | Instagram (Page + IG) | ⏳ |
+| **C-4** | Webhooks Meta page/IG → bandeja | ⏳ |
+| **C-5** | **Gmail OAuth** + inbound/outbound + map a `conversations` email | ⏳ |
+| **C-6** | TikTok OAuth | ⏳ |
+| **C-6a** | Spike: ¿API de DM TikTok? informe en ESTADO | ⏳ |
+| **C-6b** | Comentarios de videos (si API) | ⏳ |
+| **C-6c** | Métricas TikTok (si API) | ⏳ |
+| **C-7** | Asistente WhatsApp Coexistence (sin QR no oficial) | ⏳ |
+| **C-8** | Unificar tokens OAuth vs settings manuales | ⏳ |
+| **PR-6** | Media WhatsApp | ⏳ |
 
-Orden recomendado: **C-1 → C-2 → C-4 → C-3 → C-7 → PR-6 media → C-5/C-6**.
+**Orden recomendado:** C-1 → C-7 (claridad WA) → C-2 → C-4 → C-3 → **C-5 Gmail** → PR-6 → C-6 / C-6a…
 
 ---
 
-## Decisiones previas (siguen vigentes)
+## MVP ya en código (`main`)
 
-| ID | Decisión |
+| PR | Estado |
 |---|---|
-| D-00 | `ESTADO_CRM.md` = fuente de información |
-| D-01 | Plugin propio en Hostinger shared |
-| D-02 | No modificar sistema instalado; solo lectura de datos WP/WC |
-| D-03 | Solo https://vitacareec.org/crm |
-| D-04 / D-04b | WhatsApp oficial Coexistence; **no** QR no oficial |
-| D-08 | GitHub respaldo al cerrar tarea |
-| D-12 / D-13 | OAuth + selector Page; secretos fuera de Git |
+| 0–5 Hardening, settings, REST, WA in/out, bandeja | ✅ v0.6.0 |
 
 ---
 
-## Preguntas abiertas (necesitan respuesta de Yusiel / VITACARE)
+## Preguntas abiertas restantes
 
-| # | Pregunta | Bloquea |
+| # | Pregunta | Notas |
 |---|---|---|
-| **OQ-G1** | Google: ¿Business Profile, Gmail, u otro? | C-5 |
-| **OQ-T1** | TikTok: ¿solo branding/ads o se espera DM en bandeja (puede no existir)? | Alcance C-6 |
-| **OQ-M1** | ¿Ya existe App en Meta for Developers + Business Manager de VITACARE? | C-2/C-3 y prueba real WA |
-| **OQ-W1** | Confirmar aceptación de **Coexistence** (oficial) en lugar de QR no oficial | C-7 / compliance |
+| OQ-M1 | ¿App Meta + Business Manager listos? | Necesario FB/IG/WA prod |
+| OQ-G2 | ¿Una sola casilla Gmail de VITACARE o varias por sede/asesor? | Diseño C-5 |
+| OQ-T2 | ¿Cuenta TikTok Business ya creada / país y tipo de app? | Revisión TikTok |
+
+**Resueltas:** OQ-G1 = Gmail+CRM; OQ-T1 = chats+comentarios+métricas deseados; OQ-W1 = deseo QR vinculado, **implementación = Coexistence oficial (D-04…D-04d)**.
 
 ---
 
-## PR-5 entregado (v0.6.0) — resumen
+## Siguiente paso
 
-Bandeja 3 paneles en `/crm`: lista, hilo, compositor WhatsApp, polling 20s. Ver commits `8481c64`.
-
----
-
-## Siguiente paso de implementación
-
-1. Confirmar **OQ-W1** (Coexistence vs QR) y **OQ-G1** (Google).  
-2. Empezar **C-1 + C-2**: pantalla Conectar Facebook + selector de Página.  
-3. Opcional en paralelo: **PR-6** media WhatsApp.  
-4. Seguir documentando cada entrega en este archivo + push a GitHub.
+1. Implementar **C-1** (pantalla Cuentas conectadas) + **C-7** (texto/flujo Coexistence WhatsApp).  
+2. Luego **C-2** Facebook + selector de Página.  
+3. Luego **C-5** Gmail OAuth.  
+4. Spike **C-6a** TikTok DM en paralelo documental.
 
 ---
 
@@ -184,5 +181,6 @@ Bandeja 3 paneles en `/crm`: lista, hilo, compositor WhatsApp, polling 20s. Ver 
 
 | Fecha | Qué | Ref |
 |---|---|---|
-| 2026-08-03 | PR-0…PR-5 (MVP mensajería + bandeja) | …`8481c64` |
-| 2026-08-03 | **Requisitos OAuth** FB/IG/Google/TikTok; **selector Página FB**; WhatsApp Coexistence vs **prohibición QR no oficial**; plan C-1…C-8 | este update |
+| 2026-08-03 | PR-0…PR-5 | …`8481c64` |
+| 2026-08-03 | Requisitos OAuth iniciales | `d758ba3` |
+| 2026-08-03 | **Confirmaciones:** WA (deseo QR vs D-04 Coexistence only), **Gmail** para CRM, **TikTok** chats/comentarios/métricas con límites API; planes C-5/C-6 | este update |
