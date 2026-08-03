@@ -68,7 +68,7 @@ Versión plugin: **1.3.0** en `vitacare-crm.php`.
 
 | ID | Descripción |
 |---|---|
-| Ops | Desplegar ZIP en producción; configurar Meta + Google; agregar producto Instagram en la App Meta; cron Hostinger |
+| **Ops — EN CURSO** | Desplegar en producción. `/crm` da 404 en `vitacareec.org` porque **el plugin nunca se instaló ahí**, solo vive en GitHub. El usuario pidió instalación directa y ofreció credenciales Hostinger (SSH/SFTP); se le pidieron en el chat y **todavía no las mandó**. Retomar pidiéndolas de nuevo si no llegaron — no asumir que ya se instaló. Detalle completo en `ESTADO_CRM.md` sección 5b. |
 | **C-6** | TikTok OAuth; comentarios/métricas si API; DMs solo si API existe |
 | **D-18** | Media saliente por Instagram: decidir si se expone media con URL firmada/expirable (Send API de IG la exige) |
 | Leads | Pipeline DB v3 + UI (post-MVP en DESIGN) |

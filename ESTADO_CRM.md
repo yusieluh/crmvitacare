@@ -175,17 +175,31 @@ crmvitacare/
 
 | Prioridad | ID | Trabajo |
 |---|---|---|
-| Alta | **Ops** | Instalar ZIP v1.3.0 en WP prod; configurar Meta + Google; agregar producto Instagram en la App de Meta; probar `/crm` |
+| **Alta — EN CURSO** | **Ops** | Desplegar v1.3.0 en `vitacareec.org` (WP prod). Confirmado con el usuario que `/crm` da 404 porque el plugin **nunca se instaló en el sitio real** — solo existe en GitHub. El usuario pidió instalarlo directo (no solo darle el ZIP) y ofreció credenciales de Hostinger. **Estado: esperando que el usuario pegue credenciales SSH o SFTP** (se le pidieron en el chat, aún no llegan). Ver sección 5b. |
 | Media | **C-6** | TikTok OAuth + spike DM/comentarios/métricas |
 | Media | **D-18** | Decidir si vale la pena exponer media públicamente (con firma/expiración) para habilitar envío de adjuntos por Instagram |
 | Baja | Polish | Leads pipeline (DB v3), roles staff, notificaciones, limpieza de adjuntos subidos y nunca enviados |
 
+### 5b. Despliegue en producción — retomar aquí primero
+
+Contexto exacto para quien retome (Grok, Claude Code, u otra sesión):
+
+1. Se generó y se le envió al usuario un `vitacare-crm.zip` (v1.3.0, commit `360fa0c`) vía `git archive --format=zip --prefix=vitacare-crm/ -o vitacare-crm.zip HEAD -- . ':!tests' ':!bin' ':!.gitignore'` — instalable manualmente desde WP Admin → Plugins → Subir. Esa vía sigue disponible como fallback si el acceso directo no cuaja.
+2. El usuario después pidió instalarlo **directamente** (no manual) y dijo que da las credenciales que hagan falta.
+3. Se le pidió elegir/mandar UNA de estas dos rutas:
+   - **SSH con WP-CLI** (preferida): host/puerto SSH de Hostinger (hPanel suele dar algo tipo `subdominio` puerto `65002`), usuario, contraseña o clave privada, y confirmar si WP-CLI está habilitado. Con esto se puede subir el plugin a `wp-content/plugins/vitacare-crm/` y activarlo con `wp plugin activate vitacare-crm` sin pedirle la contraseña de wp-admin.
+   - **Solo SFTP**: host/puerto/usuario/contraseña de FTP/SFTP (hPanel → Archivos → Cuentas FTP). Con esto solo se pueden subir los archivos; el usuario tiene que entrar a WP Admin y darle "Activar" él mismo.
+4. **Antes de intentar conectar con lo que mande**, probar primero si el entorno de la sesión puede alcanzar el host por el puerto SSH/SFTP (22 o el que use Hostinger) — el sandbox donde corre Claude Code sale a internet por un proxy HTTPS que puede no dejar pasar tráfico SSH/FTP crudo. Si falla la conexión, decírselo claro al usuario y ofrecer la vía manual (ZIP + él lo sube) en vez de insistir.
+5. Límite fijo: tocar únicamente `wp-content/plugins/vitacare-crm/`. Nunca `vitacare-core`, el tema, WooCommerce, ni nada fuera de esa carpeta (D-02).
+6. Tras instalar: activar, verificar que `/crm` deja de dar 404 y muestra el panel (0 conversaciones), y recomendarle al usuario rotar/borrar la credencial temporal que haya compartido en el chat.
+7. Una vez el plugin esté activo en producción, seguir con: configurar credenciales Meta/Google reales en CRM → Credenciales, completar el checklist de WhatsApp Coexistence, conectar Facebook (+ Instagram vinculado) y Gmail, y probar un mensaje real de ida y vuelta en cada canal antes de darlo por cerrado.
+
 ### Siguiente paso de ingeniería recomendado
 
-1. `git pull` del repo.  
-2. Empaquetar e instalar en Hostinger si aún no está v1.3.0.  
-3. Completar Coexistence WA + Facebook Page (y cuenta Instagram vinculada) + Gmail en admin.  
-4. Código: **C-6 TikTok** o decidir/implementar D-18 (media saliente Instagram).
+1. `git pull` del repo (ya en `main`, v1.3.0, commit `360fa0c`).  
+2. **Primero: cerrar el despliegue en producción (sección 5b)** — es lo que el usuario está esperando ahora mismo.  
+3. Completar Coexistence WA + Facebook Page (y cuenta Instagram vinculada) + Gmail en admin, ya en el sitio real.  
+4. Código nuevo (después del despliegue): **C-6 TikTok** o decidir/implementar D-18 (media saliente Instagram).
 
 ---
 
