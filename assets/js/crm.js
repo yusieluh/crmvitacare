@@ -251,13 +251,16 @@
 		var isClosed = conv.status === 'closed';
 		el.btnClose.hidden = isClosed;
 		el.btnReopen.hidden = !isClosed;
-		el.composerInput.disabled = isClosed || conv.channel !== 'whatsapp';
-		el.btnSend.disabled =
-			isClosed || conv.channel !== 'whatsapp' || !el.composerInput.value.trim();
-		el.composerHint.textContent =
-			conv.channel === 'whatsapp'
-				? t('hintWa', 'Solo texto · ventana 24 h de WhatsApp')
-				: t('hintChannel', 'Envío solo disponible en WhatsApp por ahora.');
+		var canSend = !isClosed && (conv.channel === 'whatsapp' || conv.channel === 'facebook');
+		el.composerInput.disabled = !canSend;
+		el.btnSend.disabled = !canSend || !el.composerInput.value.trim();
+		if (conv.channel === 'whatsapp') {
+			el.composerHint.textContent = t('hintWa', 'Solo texto · ventana 24 h de WhatsApp');
+		} else if (conv.channel === 'facebook') {
+			el.composerHint.textContent = t('hintFb', 'Messenger · ventana 24 h · solo texto');
+		} else {
+			el.composerHint.textContent = t('hintChannel', 'Envío no disponible para este canal todavía.');
+		}
 	}
 
 	function renderContext(conv) {
@@ -454,10 +457,13 @@
 		});
 		el.btnSend.addEventListener('click', sendMessage);
 		el.composerInput.addEventListener('input', function () {
+			var ch = state.selected && state.selected.channel;
+			var can =
+				ch === 'whatsapp' || ch === 'facebook';
 			el.btnSend.disabled =
 				state.sending ||
 				!el.composerInput.value.trim() ||
-				(state.selected && state.selected.channel !== 'whatsapp') ||
+				!can ||
 				(state.selected && state.selected.status === 'closed');
 		});
 		el.composerInput.addEventListener('keydown', function (e) {

@@ -44,8 +44,8 @@ vitacare-crm/
 
 ## Estado
 
-- Plugin **v0.8.0**: + **Facebook OAuth** y **selector de Página**.
-- **Siguiente:** C-4 webhooks Messenger; C-5 Gmail; PR-6 media.
+- Plugin **v0.9.0**: WhatsApp + **Facebook Messenger** (OAuth, Página, bandeja in/out).
+- **Siguiente:** C-5 Gmail; C-3 Instagram; PR-6 media.
 
 Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
 

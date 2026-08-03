@@ -3,7 +3,7 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Webhooks Meta. Rutas siempre registradas. Fail-closed sin secret/flag.
- * PR-3: verify GET + POST HMAC + dispatch WhatsApp inbound/statuses.
+ * WhatsApp (object=whatsapp_business_account) + Messenger (object=page).
  */
 final class Vitacare_Crm_Webhook {
 
@@ -31,8 +31,12 @@ final class Vitacare_Crm_Webhook {
 	 * @return WP_REST_Response
 	 */
 	public static function handle_get( WP_REST_Request $request ) {
-		if ( ! Vitacare_Crm_Settings::flag( 'whatsapp' ) ) {
-			return new WP_REST_Response( array( 'error' => 'whatsapp_disabled' ), 403 );
+		// Un solo endpoint verify para WA + Page (Messenger/IG).
+		if ( ! Vitacare_Crm_Settings::flag( 'whatsapp' )
+			&& ! Vitacare_Crm_Settings::flag( 'facebook' )
+			&& ! Vitacare_Crm_Settings::flag( 'instagram' )
+		) {
+			return new WP_REST_Response( array( 'error' => 'channels_disabled' ), 403 );
 		}
 
 		$expected = Vitacare_Crm_Settings::get( 'verify_token' );
@@ -87,7 +91,6 @@ final class Vitacare_Crm_Webhook {
 
 		$payload = json_decode( $raw, true );
 		if ( ! is_array( $payload ) ) {
-			// Evento basura: 200 sin writes para evitar storm.
 			Vitacare_Crm_Logger::debug( 'webhook_invalid_json' );
 			return new WP_REST_Response( array( 'ok' => true, 'skipped' => 'invalid_json' ), 200 );
 		}
@@ -99,14 +102,31 @@ final class Vitacare_Crm_Webhook {
 				'skipped'  => 0,
 			);
 
-			// WhatsApp (y futuro routing multi-canal).
-			if ( Vitacare_Crm_Settings::flag( 'whatsapp' ) ) {
-				$wa = Vitacare_Crm_Channel_Whatsapp::handle_payload( $payload );
-				$stats['messages'] += $wa['messages'];
-				$stats['statuses'] += $wa['statuses'];
-				$stats['skipped']  += $wa['skipped'];
-			} else {
-				// Firma válida pero canal off tras check genérico: no-op 200.
+			$object = isset( $payload['object'] ) ? (string) $payload['object'] : '';
+
+			if ( $object === 'whatsapp_business_account' || $object === '' ) {
+				if ( Vitacare_Crm_Settings::flag( 'whatsapp' ) ) {
+					$wa = Vitacare_Crm_Channel_Whatsapp::handle_payload( $payload );
+					$stats['messages'] += $wa['messages'];
+					$stats['statuses'] += $wa['statuses'];
+					$stats['skipped']  += $wa['skipped'];
+				} else {
+					++$stats['skipped'];
+				}
+			}
+
+			if ( $object === 'page' ) {
+				if ( Vitacare_Crm_Settings::flag( 'facebook' ) || Vitacare_Crm_Settings::flag( 'instagram' ) ) {
+					$fb = Vitacare_Crm_Channel_Messenger::handle_payload( $payload );
+					$stats['messages'] += $fb['messages'];
+					$stats['statuses'] += $fb['statuses'];
+					$stats['skipped']  += $fb['skipped'];
+				} else {
+					++$stats['skipped'];
+				}
+			}
+
+			if ( $object !== '' && $object !== 'whatsapp_business_account' && $object !== 'page' ) {
 				++$stats['skipped'];
 			}
 
@@ -124,14 +144,10 @@ final class Vitacare_Crm_Webhook {
 					'error' => $e->getMessage(),
 				)
 			);
-			// Meta reintenta en 5xx.
 			return new WP_REST_Response( array( 'error' => 'persistence_failed' ), 500 );
 		}
 	}
 
-	/**
-	 * HMAC SHA-256 timing-safe (testable).
-	 */
 	public static function valid_signature( string $raw_body, string $header, string $app_secret ): bool {
 		if ( $app_secret === '' || $header === '' ) {
 			return false;

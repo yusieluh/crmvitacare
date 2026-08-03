@@ -352,6 +352,18 @@ final class Vitacare_Crm_Facebook_Oauth {
 		}
 		update_option( self::OPTION_PAGES_CACHE, $safe, false );
 
+		// C-4: suscribir Página a eventos de mensajería de la app.
+		if ( class_exists( 'Vitacare_Crm_Channel_Messenger' ) ) {
+			$sub = Vitacare_Crm_Channel_Messenger::subscribe_page();
+			if ( is_wp_error( $sub ) ) {
+				Vitacare_Crm_Logger::error(
+					'fb_subscribe_page_failed',
+					array( 'msg' => $sub->get_error_message() )
+				);
+				// No fallar la selección: el admin puede reintentar en la UI.
+			}
+		}
+
 		return true;
 	}
 
@@ -387,6 +399,15 @@ final class Vitacare_Crm_Facebook_Oauth {
 					echo '<div class="notice notice-error"><p>' . esc_html( $r->get_error_message() ) . '</p></div>';
 				} else {
 					echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Página seleccionada y canal Facebook activado.', 'vitacare-crm' ) . '</p></div>';
+				}
+			} elseif ( $action === 'resubscribe' ) {
+				$sub = class_exists( 'Vitacare_Crm_Channel_Messenger' )
+					? Vitacare_Crm_Channel_Messenger::subscribe_page()
+					: new WP_Error( 'missing', 'Messenger channel missing' );
+				if ( is_wp_error( $sub ) ) {
+					echo '<div class="notice notice-error"><p>' . esc_html( $sub->get_error_message() ) . '</p></div>';
+				} else {
+					echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Página re-suscrita a mensajes de la app.', 'vitacare-crm' ) . '</p></div>';
 				}
 			} elseif ( $action === 'connect' ) {
 				$url = self::start_oauth_url();
@@ -465,16 +486,31 @@ final class Vitacare_Crm_Facebook_Oauth {
 							<?php echo esc_html__( 'Canal Facebook activado', 'vitacare-crm' ); ?>
 						</span>
 					</p>
-					<form method="post">
+					<form method="post" style="display:inline-block;margin-right:8px">
+						<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
+						<input type="hidden" name="fb_action" value="resubscribe" />
+						<?php submit_button( __( 'Re-suscribir Página a webhooks', 'vitacare-crm' ), 'secondary', 'submit', false ); ?>
+					</form>
+					<form method="post" style="display:inline-block;margin-right:8px">
 						<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
 						<input type="hidden" name="fb_action" value="disconnect" />
 						<?php submit_button( __( 'Desconectar Facebook', 'vitacare-crm' ), 'delete', 'submit', false ); ?>
 					</form>
-					<form method="post" style="display:inline">
+					<form method="post" style="display:inline-block">
 						<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
 						<input type="hidden" name="fb_action" value="connect" />
 						<?php submit_button( __( 'Reconectar / cambiar cuenta', 'vitacare-crm' ), 'secondary', 'submit', false ); ?>
 					</form>
+					<p class="description" style="margin-top:12px">
+						<?php
+						echo esc_html__(
+							'Webhook (mismo que WhatsApp): suscribe el producto Messenger / Page al mismo callback URL del CRM. Campos: messages.',
+							'vitacare-crm'
+						);
+						?>
+						<br />
+						<code><?php echo esc_html( Vitacare_Crm_Settings::webhook_url() ); ?></code>
+					</p>
 				</div>
 			<?php endif; ?>
 

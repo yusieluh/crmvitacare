@@ -210,7 +210,25 @@ final class Vitacare_Crm_Rest {
 		}
 
 		$text = isset( $body['body'] ) ? (string) $body['body'] : '';
-		$result = Vitacare_Crm_Channel_Whatsapp::send_text( $id, $text );
+
+		$conv = Vitacare_Crm_Conversations_Repo::get( $id );
+		if ( null === $conv ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Conversación no encontrada.', 'vitacare-crm' ), 404 );
+		}
+
+		$channel = (string) ( $conv['channel'] ?? '' );
+		if ( $channel === 'whatsapp' ) {
+			$result = Vitacare_Crm_Channel_Whatsapp::send_text( $id, $text );
+		} elseif ( $channel === 'facebook' ) {
+			$result = Vitacare_Crm_Channel_Messenger::send_text( $id, $text );
+		} else {
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_invalid_param',
+				__( 'Envío no disponible para este canal todavía.', 'vitacare-crm' ),
+				400
+			);
+		}
+
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}

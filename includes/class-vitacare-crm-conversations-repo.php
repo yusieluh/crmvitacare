@@ -242,10 +242,28 @@ final class Vitacare_Crm_Conversations_Repo {
 		?string $contact_phone,
 		array $meta_extra = array()
 	): int {
+		return self::upsert_contact( 'whatsapp', $external_contact_id, $contact_name, $contact_phone, $meta_extra );
+	}
+
+	/**
+	 * Upsert por canal + external_contact_id (UNIQUE).
+	 *
+	 * @param array<string, mixed> $meta_extra
+	 */
+	public static function upsert_contact(
+		string $channel,
+		string $external_contact_id,
+		?string $contact_name,
+		?string $contact_phone,
+		array $meta_extra = array()
+	): int {
 		global $wpdb;
-		$table  = Vitacare_Crm_Db::conversations_table();
-		$now    = current_time( 'mysql' );
-		$channel = 'whatsapp';
+		$table   = Vitacare_Crm_Db::conversations_table();
+		$now     = current_time( 'mysql' );
+		$channel = sanitize_key( $channel );
+		if ( $channel === '' || $external_contact_id === '' ) {
+			return 0;
+		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$existing = $wpdb->get_row(
