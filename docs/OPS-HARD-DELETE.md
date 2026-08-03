@@ -14,4 +14,6 @@ DELETE FROM wp_options WHERE option_name LIKE 'vitacare_crm_%';
 -- DELETE FROM wp_posts WHERE post_name = 'crm' AND post_type = 'page';
 ```
 
+Media (PR-6): los adjuntos descargados viven en `wp-content/uploads/vitacare-crm-media/` (fuera de las tablas). Si se hace hard-delete de conversaciones/mensajes, borrar también ese directorio manualmente — no está referenciado por integridad referencial de MySQL.
+
 No automatizar esto en `uninstall.php` sin decisión de producto documentada en `ESTADO_CRM.md`.

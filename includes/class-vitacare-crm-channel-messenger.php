@@ -127,8 +127,22 @@ final class Vitacare_Crm_Channel_Messenger {
 				? ( $type === 'file' ? 'document' : $type )
 				: 'other';
 			$body         = '[' . $type . ']';
-			if ( isset( $att['payload']['url'] ) ) {
-				$media_url = (string) $att['payload']['url'];
+			// PR-6: descargar el adjunto a almacenamiento propio; nunca se
+			// expone el CDN url de Meta (temporal y sin control de acceso).
+			if ( isset( $att['payload']['url'] ) && class_exists( 'Vitacare_Crm_Media' ) ) {
+				$downloaded = Vitacare_Crm_Media::download_remote_media( (string) $att['payload']['url'] );
+				if ( is_array( $downloaded ) ) {
+					$media_url  = $downloaded['ref'];
+					$media_mime = $downloaded['mime'] !== '' ? $downloaded['mime'] : $media_mime;
+				} else {
+					Vitacare_Crm_Logger::error(
+						'messenger_media_download_failed',
+						array(
+							'mid' => $mid,
+							'msg' => is_wp_error( $downloaded ) ? $downloaded->get_error_message() : 'unknown',
+						)
+					);
+				}
 			}
 		} elseif ( ! empty( $message['sticker_id'] ) ) {
 			$message_type = 'sticker';

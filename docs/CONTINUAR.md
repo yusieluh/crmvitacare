@@ -29,7 +29,7 @@ Luego:
 
 1. Abrir y leer **`ESTADO_CRM.md`** (completo).  
 2. Leer este archivo.  
-3. **No** rehacer PR-0…PR-5 ni C-1, C-2, C-3, C-4, C-5, C-7 (ya están en `main` v1.1.0).  
+3. **No** rehacer PR-0…PR-6 ni C-1, C-2, C-3, C-4, C-5, C-7 (ya están en `main` v1.2.0).  
 4. Elegir trabajo de la sección “Pendiente” de ESTADO.
 
 ---
@@ -55,10 +55,11 @@ Luego:
 - Facebook: OAuth, selector de Página, Messenger in/out, subscribed_apps
 - Instagram Direct: cuenta profesional vinculada a la Página (mismo token), webhook `object=instagram`, in/out Graph
 - Gmail: OAuth, sync INBOX (cron 5 min), envío desde bandeja
+- **Media (PR-6):** descarga inbound de imagen/audio/video/documento de WhatsApp/Messenger/Instagram a `wp-content/uploads/vitacare-crm-media/` (deny-direct vía `.htaccess`), servida solo por `GET /media/{message_id}` con cap `vitacare_crm_access`; render en la bandeja (`<img>`/`<audio>`/`<video>`/enlace de descarga)
 - Admin: Cuentas, WA Coexistence checklist, Facebook (+ estado Instagram), Gmail, Credenciales
 - DB upgrader a v2, logger en uploads protegido
 
-Versión plugin: **1.1.0** en `vitacare-crm.php`.
+Versión plugin: **1.2.0** en `vitacare-crm.php`.
 
 ---
 
@@ -67,8 +68,8 @@ Versión plugin: **1.1.0** en `vitacare-crm.php`.
 | ID | Descripción |
 |---|---|
 | Ops | Desplegar ZIP en producción; configurar Meta + Google; agregar producto Instagram en la App Meta; cron Hostinger |
-| **PR-6** | Media WhatsApp/Instagram (descargar, store opaco, deny HTTP, servir con cap) |
 | **C-6** | TikTok OAuth; comentarios/métricas si API; DMs solo si API existe |
+| **PR-6b** | Media saliente (adjuntar imagen/documento al responder desde la bandeja) — PR-6 solo cubrió inbound |
 | Leads | Pipeline DB v3 + UI (post-MVP en DESIGN) |
 
 ---
@@ -119,7 +120,7 @@ Trabaja en el plugin WordPress VITACARE CRM:
 - WhatsApp solo Cloud API + Coexistence (prohibido Baileys/QR no oficial)
 - Al terminar: actualiza ESTADO_CRM.md, commit y push a GitHub
 
-Tarea concreta: <describir PR-6 / C-6 / etc.>
+Tarea concreta: <describir C-6 / PR-6b / etc.>
 ```
 
 ---

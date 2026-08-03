@@ -73,6 +73,16 @@ final class Vitacare_Crm_Rest {
 			)
 		);
 
+		register_rest_route(
+			'vitacare-crm/v1',
+			'/media/(?P<id>\d+)',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'get_media' ),
+				'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+			)
+		);
+
 		Vitacare_Crm_Webhook::register_routes();
 	}
 
@@ -237,5 +247,43 @@ final class Vitacare_Crm_Rest {
 			return $result;
 		}
 		return new WP_REST_Response( $result, 201 );
+	}
+
+	/**
+	 * PR-6: sirve un adjunto descargado a almacenamiento propio. Nunca
+	 * expone rutas de disco ni URLs de Meta; solo IDs de mensaje internos
+	 * y requiere la capability del CRM (permission_callback de la ruta).
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function get_media( WP_REST_Request $request ) {
+		$id  = (int) $request['id'];
+		$row = Vitacare_Crm_Messages_Repo::get( $id );
+		if ( null === $row ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Mensaje no encontrado.', 'vitacare-crm' ), 404 );
+		}
+
+		$ref = isset( $row->media_url ) ? (string) $row->media_url : '';
+		if ( ! Vitacare_Crm_Media::is_local_ref( $ref ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Este mensaje no tiene un archivo disponible.', 'vitacare-crm' ), 404 );
+		}
+
+		$path = Vitacare_Crm_Media::resolve_path( $ref );
+		if ( null === $path || ! is_readable( $path ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Archivo no disponible.', 'vitacare-crm' ), 404 );
+		}
+
+		$mime = isset( $row->media_mime ) && $row->media_mime !== '' ? (string) $row->media_mime : 'application/octet-stream';
+
+		nocache_headers();
+		header( 'Content-Type: ' . $mime );
+		header( 'Content-Length: ' . (string) filesize( $path ) );
+		header( 'Content-Disposition: inline; filename="' . basename( $path ) . '"' );
+		header( 'X-Content-Type-Options: nosniff' );
+		header( 'X-Robots-Tag: noindex, nofollow' );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_readfile
+		readfile( $path );
+		exit;
 	}
 }

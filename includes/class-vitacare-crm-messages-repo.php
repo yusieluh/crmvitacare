@@ -67,6 +67,22 @@ final class Vitacare_Crm_Messages_Repo {
 	/**
 	 * @return object|null
 	 */
+	public static function get( int $id ) {
+		global $wpdb;
+		if ( $id <= 0 ) {
+			return null;
+		}
+		$table = Vitacare_Crm_Db::messages_table();
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$row = $wpdb->get_row(
+			$wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $id )
+		);
+		return $row ?: null;
+	}
+
+	/**
+	 * @return object|null
+	 */
 	public static function find_by_external_id( string $external_message_id ) {
 		global $wpdb;
 		if ( $external_message_id === '' ) {
@@ -163,6 +179,13 @@ final class Vitacare_Crm_Messages_Repo {
 	 * @return array<string, mixed>
 	 */
 	public static function format( object $row ): array {
+		// PR-6: solo se expone la URL propia (REST /media/{id}) cuando el
+		// archivo ya está descargado a almacenamiento local. Nunca se filtran
+		// refs internas (media ids de Meta) ni URLs de CDN de terceros.
+		$media_url = null;
+		if ( class_exists( 'Vitacare_Crm_Media' ) && Vitacare_Crm_Media::is_local_ref( $row->media_url ?? null ) ) {
+			$media_url = Vitacare_Crm_Media::public_media_url( (int) $row->id );
+		}
 		return array(
 			'id'                   => (int) $row->id,
 			'conversation_id'      => (int) $row->conversation_id,
@@ -170,7 +193,7 @@ final class Vitacare_Crm_Messages_Repo {
 			'sender_type'          => (string) $row->sender_type,
 			'message_type'         => isset( $row->message_type ) && $row->message_type !== '' ? (string) $row->message_type : 'text',
 			'body'                 => $row->body,
-			'media_url'            => $row->media_url,
+			'media_url'            => $media_url,
 			'media_mime'           => $row->media_mime ?? null,
 			'delivery_status'      => $row->delivery_status ?? null,
 			'external_message_id'  => $row->external_message_id,

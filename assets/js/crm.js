@@ -287,6 +287,50 @@
 		});
 	}
 
+	function renderMedia(m) {
+		var wrap = document.createElement('div');
+		wrap.className = 'vcrm-bubble-media';
+		var type = m.message_type;
+
+		if (type === 'image' || type === 'sticker') {
+			var link = document.createElement('a');
+			link.href = m.media_url;
+			link.target = '_blank';
+			link.rel = 'noopener noreferrer';
+			var img = document.createElement('img');
+			img.src = m.media_url;
+			img.alt = type === 'sticker' ? 'sticker' : t('image', 'Imagen');
+			img.loading = 'lazy';
+			img.className = 'vcrm-media-img';
+			link.appendChild(img);
+			wrap.appendChild(link);
+		} else if (type === 'audio') {
+			var audio = document.createElement('audio');
+			audio.controls = true;
+			audio.preload = 'none';
+			audio.src = m.media_url;
+			audio.className = 'vcrm-media-audio';
+			wrap.appendChild(audio);
+		} else if (type === 'video') {
+			var video = document.createElement('video');
+			video.controls = true;
+			video.preload = 'none';
+			video.src = m.media_url;
+			video.className = 'vcrm-media-video';
+			wrap.appendChild(video);
+		} else {
+			var a = document.createElement('a');
+			a.href = m.media_url;
+			a.target = '_blank';
+			a.rel = 'noopener noreferrer';
+			a.className = 'vcrm-media-file';
+			a.textContent = t('downloadFile', 'Descargar archivo');
+			wrap.appendChild(a);
+		}
+
+		return wrap;
+	}
+
 	function renderMessages(scrollBottom) {
 		el.threadMessages.textContent = '';
 		if (!state.messages.length) {
@@ -302,9 +346,23 @@
 			var isOut = m.direction === 'outbound';
 			bubble.className = 'vcrm-bubble ' + (isOut ? 'vcrm-bubble-out' : 'vcrm-bubble-in');
 
-			var body = document.createElement('div');
-			body.className = 'vcrm-bubble-body';
-			body.textContent = m.body != null && m.body !== '' ? String(m.body) : '[' + (m.message_type || 'msg') + ']';
+			if (m.media_url) {
+				bubble.appendChild(renderMedia(m));
+			}
+
+			var bodyText = m.body != null && m.body !== '' ? String(m.body) : '';
+			var isPlaceholder = /^\[.*\]$/.test(bodyText);
+			if (bodyText && !(m.media_url && isPlaceholder)) {
+				var body = document.createElement('div');
+				body.className = 'vcrm-bubble-body';
+				body.textContent = bodyText;
+				bubble.appendChild(body);
+			} else if (!bodyText && !m.media_url) {
+				var fallback = document.createElement('div');
+				fallback.className = 'vcrm-bubble-body';
+				fallback.textContent = '[' + (m.message_type || 'msg') + ']';
+				bubble.appendChild(fallback);
+			}
 
 			var meta = document.createElement('span');
 			meta.className = 'vcrm-bubble-meta';
@@ -315,7 +373,6 @@
 			}
 			meta.textContent = bits.filter(Boolean).join(' · ');
 
-			bubble.appendChild(body);
 			bubble.appendChild(meta);
 			el.threadMessages.appendChild(bubble);
 		});

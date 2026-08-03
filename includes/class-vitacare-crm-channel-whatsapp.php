@@ -150,8 +150,28 @@ final class Vitacare_Crm_Channel_Whatsapp {
 		$type = isset( $msg['type'] ) ? sanitize_key( (string) $msg['type'] ) : 'text';
 		$body = self::extract_body( $msg, $type );
 		$mime = self::extract_mime( $msg, $type );
-		// media id de Meta se guarda como referencia; descarga en PR-6.
-		$media_ref = self::extract_media_id( $msg, $type );
+		// PR-6: descargar el media a almacenamiento propio (opaco); si falla,
+		// no se rompe el mensaje — solo queda sin adjunto reproducible.
+		$media_id_ref = self::extract_media_id( $msg, $type );
+		$media_ref    = null;
+		if ( null !== $media_id_ref && class_exists( 'Vitacare_Crm_Media' ) ) {
+			$raw_id     = substr( $media_id_ref, 5 ); // quita el prefijo "meta:"
+			$downloaded = Vitacare_Crm_Media::download_whatsapp_media( $raw_id );
+			if ( is_array( $downloaded ) ) {
+				$media_ref = $downloaded['ref'];
+				if ( $downloaded['mime'] !== '' ) {
+					$mime = $downloaded['mime'];
+				}
+			} else {
+				Vitacare_Crm_Logger::error(
+					'wa_media_download_failed',
+					array(
+						'wamid' => $wamid,
+						'msg'   => is_wp_error( $downloaded ) ? $downloaded->get_error_message() : 'unknown',
+					)
+				);
+			}
+		}
 
 		$ts = isset( $msg['timestamp'] ) ? (int) $msg['timestamp'] : 0;
 		$created = $ts > 0 ? gmdate( 'Y-m-d H:i:s', $ts ) : current_time( 'mysql', true );
