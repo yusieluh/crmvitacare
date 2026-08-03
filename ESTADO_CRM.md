@@ -1,54 +1,122 @@
 # ESTADO_CRM.md — Registro vivo del CRM VITACARE
 
-> Mismo propósito que `ESTADO_PROYECTO.md` del repo principal `vitacare-demo`: leer esto primero en cualquier sesión nueva sobre este repo, antes de tocar código. Se actualiza al cerrar cada fase.
+> **Leer esto primero** en cualquier sesión nueva sobre este repo, antes de tocar código.  
+> Se actualiza **al cerrar cada tarea/fase/PR** y se hace **commit + push a GitHub** como respaldo obligatorio.
+
+**Repositorio:** https://github.com/yusieluh/crmvitacare  
+**Sitio / WordPress:** https://vitacareec.org/  
+**URL pública del CRM:** https://vitacareec.org/crm  
+**Diseño completo:** [`docs/DESIGN.md`](./docs/DESIGN.md)  
+**Proceso de documentación:** [`docs/PROCESS.md`](./docs/PROCESS.md)  
+**Última actualización:** 2026-08-03
+
+---
 
 ## 0. Qué es esto y cómo se relaciona con el sistema principal
 
 - Repositorio independiente para el plugin **VITACARE CRM** (bandeja de conversaciones WhatsApp/Facebook/Instagram/correo + gestión de leads).
-- Se instala como **plugin nuevo** (`vitacare-crm`) junto a `vitacare-core` y `vitacare-theme`, sin modificar ninguno de los dos.
-- Al activarse, crea automáticamente la página **`/crm/`** y reutiliza el `header.php`/`footer.php` del tema activo (vía `template_include`), heredando la identidad visual VITACARE sin duplicar CSS del tema.
-- Producción real del sistema principal: `https://vitacareec.org/` (no tocar desde este repo). Este plugin se instalará ahí una vez probado.
+- Se instala en el **WordPress del dominio** (`vitacareec.org`) como **plugin nuevo** (`vitacare-crm`), **integrado** con el sistema ya creado (`vitacare-core`, `vitacare-theme`, WooCommerce).
+- **Regla de no invasión:** no modifica, no parchea y no reescribe el sistema existente. Solo **obtiene información** (lectura) de usuarios WP, pedidos, roles, etc., para vincular conversaciones y leads.
+- Los datos propios del CRM (conversaciones, mensajes, leads, settings del plugin) viven en tablas/options **propias** (`wp_vitacare_crm_*`).
+- Al activarse, crea la página **`/crm`** → **https://vitacareec.org/crm** y reutiliza header/footer del tema activo (vía `template_include`) sin editar el tema.
+- El código, el plan, el diseño y el historial de cambios **viven en este repo de GitHub** como respaldo de verdad.
+
+---
+
+## 0.1 Política de respaldo y documentación (obligatoria)
+
+Al **completar cada tarea** (fase, PR, fix o decisión de producto):
+
+1. Actualizar este archivo (`ESTADO_CRM.md`): estado de fases, siguiente paso, y entrada en el **Changelog**.
+2. Si cambió arquitectura o alcance: actualizar `docs/DESIGN.md` (o añadir nota en Open Questions resueltas).
+3. Si cambió uso para humanos: actualizar `README.md`.
+4. **Commit** con mensaje claro en español o conventional commits.
+5. **Push a `main` (o PR mergeado)** en https://github.com/yusieluh/crmvitacare — el remoto es el respaldo oficial.
+
+Nada “queda solo en el chat” o en archivos temporales: si no está en GitHub, **no está documentado**.
+
+Detalle operativo: [`docs/PROCESS.md`](./docs/PROCESS.md).
+
+---
 
 ## 1. Decisiones ya tomadas (no reabrir sin razón nueva)
 
-- Se descartó `trycompai/crm` (no tiene integraciones sociales, stack pensado para Vercel, muy inmaduro).
-- Se descartó montar un CRM externo tipo **erxes**/**Chatwoot**: exigirían VPS/Docker aparte y duplicarían la fuente de verdad (usuarios, pedidos, citas ya viven en WordPress/WooCommerce).
-- CRM propio, como plugin de WordPress, corre en el mismo hosting compartido de Hostinger que ya usa el sitio — sin costo de infraestructura adicional.
-- Ruta pública: `vitacareec.org/crm/`.
-- WhatsApp: integración oficial vía **Cloud API + Coexistence** (Meta, lanzada 2025) — mantiene la app de WhatsApp Business del celular funcionando igual, sincronizada en tiempo real con el CRM. Se descarta la vía no oficial "vincular como dispositivo" (librerías tipo Baileys/whatsapp-web.js): riesgo real de bloqueo del número, contra Términos de Servicio de WhatsApp, inaceptable para un sistema de salud con pacientes reales.
-- Nota de costo: desde el 1 de octubre de 2026 Meta cobra por mensajes de servicio enviados vía Cloud API — presupuestar antes de escalar volumen.
-- TikTok: no tiene webhook de mensajería estándar equivalente a Meta — queda pendiente de investigación aparte (fase 7), no bloquea el resto.
+| ID | Decisión |
+|---|---|
+| D-01 | CRM propio como **plugin WordPress** en el mismo hosting (Hostinger shared). Sin VPS/Docker para Chatwoot/erxes. |
+| D-02 | **No modificar** `vitacare-core` / `vitacare-theme` / sistema principal; solo **lectura** de datos del ecosistema. |
+| D-03 | URL del CRM: **https://vitacareec.org/crm** (sitio: https://vitacareec.org/) |
+| D-04 | WhatsApp: solo **Cloud API + Coexistence** (Meta). Prohibido Baileys / whatsapp-web.js. |
+| D-05 | Canales: WhatsApp → FB/IG → correo; TikTok investigación aparte. |
+| D-06 | Tablas propias: `wp_vitacare_crm_conversations`, `wp_vitacare_crm_messages` (+ leads en fase posterior). |
+| D-07 | Capability: `vitacare_crm_access` (admin nativo por ahora). |
+| D-08 | **GitHub = respaldo y fuente de documentación**; plan y cambios se documentan al cerrar cada tarea. |
+| D-09 | Diseño de producto e implementación incremental: ver `docs/DESIGN.md` (MVP = PR-0…PR-6). |
+
+Otras notas:
+
+- Descartados: `trycompai/crm`, erxes, Chatwoot (infra y fuente de verdad duplicada).
+- Costo Meta: desde 1 oct 2026 cobran mensajes de servicio vía Cloud API — presupuestar al escalar.
+- TikTok: sin webhook de mensajería estándar → fase 7, no bloquea.
+
+---
 
 ## 2. Plan de fases
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| 0 | Investigación y decisión de arquitectura (ver sección 1) | ✅ Cerrada |
-| 1 | Esqueleto del plugin: tablas `wp_vitacare_crm_conversations`/`wp_vitacare_crm_messages`, capability `vitacare_crm_access`, página `/crm/` autocreada, plantilla que reutiliza el tema, panel base con métricas (0 conversaciones) | ✅ Construida localmente, **pendiente de aprobación para commit/push** |
-| 2 | WhatsApp Cloud API (Coexistence): webhook de verificación + recepción, envío saliente vía Graph API, bandeja real de conversaciones/hilo de mensajes (reemplaza el placeholder de métricas) | ⏳ Pendiente — requiere que el usuario cree la app en Meta for Developers y active Coexistence |
-| 3 | Facebook Messenger + Instagram Direct (Graph API), mismo patrón de webhook que fase 2, nuevo `channel` en la misma tabla | ⏳ Pendiente |
-| 4 | Canal correo (entrante/saliente) — definir proveedor según lo que el usuario ya tenga (SMTP existente + inbound parse de algún proveedor, o cuenta IMAP dedicada) | ⏳ Pendiente, definir en su momento |
-| 5 | Pipeline de leads: estados (nuevo/contactado/seguimiento/convertido/perdido), asignación a staff, notas, vínculo con paciente real (`wp_user_id`) o pedido WooCommerce existente | ⏳ Pendiente |
-| 6 | Pulido: extender acceso a `vitacare_supervisor` si se decide, notificaciones de mensaje entrante, mobile-first para uso interno (recordando que paneles internos priorizan densidad de escritorio, no target táctil) | ⏳ Pendiente |
-| 7 | TikTok — investigación de integración (sin webhook estándar de mensajería) | ⏳ Pendiente, sin bloquear el resto |
+| 0 | Investigación y decisión de arquitectura | ✅ Cerrada |
+| 1 | Esqueleto del plugin (tablas, cap, `/crm`, plantilla, métricas, REST ping) | ✅ En GitHub (`main` @ Fase 1) |
+| 1H | Hardening Fase 1 (login gate, upgrader, CSS fallback, docs, zip) — **PR-0** del diseño | ⏳ Pendiente |
+| 1S | Settings / secrets Meta — **PR-1** | ⏳ Pendiente |
+| 2 | WhatsApp Cloud API (Coexistence): webhook, inbound/outbound, bandeja real | ⏳ Pendiente (requiere App Meta) |
+| 3 | Facebook Messenger + Instagram Direct | ⏳ Pendiente |
+| 4 | Canal correo | ⏳ Pendiente |
+| 5 | Pipeline de leads | ⏳ Pendiente |
+| 6 | Pulido: roles, notificaciones, UX | ⏳ Pendiente |
+| 7 | TikTok — investigación | ⏳ Pendiente |
 
-## 3. Estructura del plugin (fase 1)
+**MVP shippable (diseño):** PR-0 → PR-6 (hardening + settings + WhatsApp + bandeja + media). Detalle en [`docs/DESIGN.md`](./docs/DESIGN.md) sección **PR Plan**.
+
+---
+
+## 3. Estructura del plugin (fase 1 actual en repo)
 
 ```
-vitacare-crm/
-├── vitacare-crm.php                     # bootstrap, constantes, hooks de activación
+crmvitacare/   (repo GitHub = carpeta del plugin en WP)
+├── vitacare-crm.php
+├── ESTADO_CRM.md              # este archivo (estado vivo)
+├── README.md
+├── docs/
+│   ├── DESIGN.md              # diseño completo + plan de PRs
+│   └── PROCESS.md             # cómo documentar y respaldar cada tarea
 ├── includes/
-│   ├── class-vitacare-crm-activator.php # tablas, capability, página /crm/
-│   ├── class-vitacare-crm-page.php      # template_include + enqueue de assets
-│   └── class-vitacare-crm-rest.php      # namespace REST vitacare-crm/v1 (stub)
+│   ├── class-vitacare-crm-activator.php
+│   ├── class-vitacare-crm-page.php
+│   └── class-vitacare-crm-rest.php
 ├── template-parts/
-│   ├── crm-page.php                     # get_header() + shell + get_footer()
-│   └── crm-shell.php                    # contenido real de /crm/
-└── assets/
-    ├── css/crm.css
-    └── js/crm.js
+│   ├── crm-page.php
+│   └── crm-shell.php
+├── assets/
+│   ├── css/crm.css
+│   └── js/crm.js
+└── uninstall.php
 ```
+
+---
 
 ## 4. Siguiente paso
 
-Aprobar el commit/push de la Fase 1 al repo, luego instalar el plugin (zip o vía SSH) en `web.vitacareec.org` como plugin nuevo, activar, y verificar que `/crm/` carga con el tema aplicado antes de empezar la Fase 2.
+1. **PR-0 / Fase 1H:** hardening del esqueleto (acceso a `/crm`, migraciones, CSS mínimo, `.gitignore`, empaquetado).
+2. En paralelo: crear App en Meta for Developers (Coexistence) cuando se vaya a Fase 2.
+3. Instalar el plugin en WordPress de `vitacareec.org` **sin tocar** core/tema; verificar https://vitacareec.org/crm tras activar.
+
+---
+
+## 5. Changelog (historial en repo)
+
+| Fecha | Qué | Ref |
+|---|---|---|
+| 2026-08-03 | Fase 1 esqueleto en `main` | commit `509fa94` |
+| 2026-08-03 | Fix URL producción → `vitacareec.org` | commit `10d1f7c` |
+| 2026-08-03 | Política GitHub = respaldo; documentar cada tarea; URL `vitacareec.org/crm`; integración solo-lectura; `docs/DESIGN.md` + `docs/PROCESS.md` | este update |
