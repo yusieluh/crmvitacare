@@ -165,6 +165,8 @@ final class Vitacare_Crm_Rest {
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
+		// Al abrir el hilo se marcan no leídos = 0 (UX bandeja).
+		Vitacare_Crm_Conversations_Repo::mark_read( $id );
 		return new WP_REST_Response( $result, 200 );
 	}
 

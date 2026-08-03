@@ -8,7 +8,7 @@
 |---|---|
 | **Sitio (raíz — NO tocar)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Versión plugin** | **0.5.0** (PR-4 WhatsApp outbound) |
+| **Versión plugin** | **0.6.0** (PR-5 bandeja UI) |
 | **DB schema** | **v2** |
 | **Diseño** | [`docs/DESIGN.md`](./docs/DESIGN.md) |
 | **Última actualización** | 2026-08-03 |
@@ -23,63 +23,54 @@
 
 ---
 
-## Plan de fases
+## Plan de fases (MVP)
 
 | PR | Contenido | Estado |
 |---|---|---|
 | 0 | Hardening | ✅ |
 | 1 | Settings Meta | ✅ |
 | 2 | REST + DB v2 | ✅ |
-| 3 | WhatsApp inbound | ✅ v0.4.0 |
-| **4** | **WhatsApp outbound** | ✅ **v0.5.0** |
-| 5 | Inbox UI | ⏳ |
+| 3 | WhatsApp inbound | ✅ |
+| 4 | WhatsApp outbound | ✅ |
+| **5** | **Inbox UI** | ✅ **v0.6.0** |
 | 6 | Media | ⏳ |
 
 ---
 
-## PR-4 entregado (v0.5.0)
+## PR-5 entregado (v0.6.0)
 
-### `POST /wp-json/vitacare-crm/v1/conversations/{id}/messages`
+### Bandeja en https://vitacareec.org/crm
 
-```json
-{ "body": "Hola, ¿en qué te ayudo?" }
-```
+Layout 3 columnas (responsive):
 
-- Auth: login + `vitacare_crm_access`
-- Solo canal `whatsapp`; body max 4096; sin media (PR-6)
-- Graph: `POST /{phone-number-id}/messages` timeout 15s, UA `VITACARE-CRM/{ver}`
-- Persiste mensaje `outbound`/`staff` con wamid; dedupe si webhook llegó antes
-- Cupo soft mensual (option `vitacare_crm_outbound_count_YYYY_MM`) — log + `soft_limit_warning`
+1. **Lista** — filtros estado/canal/búsqueda; preview; badge no leídos; chip canal  
+2. **Hilo** — burbujas in/out; meta hora/CRM|App/delivery; cerrar/reabrir  
+3. **Contexto** — nombre, teléfono, canal, estado, asignado, id externo  
 
-### Errores
+### Comportamiento JS (`assets/js/crm.js`)
 
-| Código | HTTP | Cuándo |
-|---|---|---|
-| `vitacare_crm_outside_window` | 409 | Fuera de ventana 24h (sin templates HSM en MVP) |
-| `vitacare_crm_rate_limited` | 429 | Rate limit Meta (+ cola AS si existe) |
-| `vitacare_crm_graph_error` | 502 | Token, red, Graph genérico |
-| `vitacare_crm_invalid_param` | 400 | Body vacío / canal incorrecto |
-| `vitacare_crm_not_found` | 404 | Conversación inexistente |
+- `GET /conversations`, `GET …/messages`, `POST …/messages`, `PATCH` status  
+- Polling **20 s** (pausa si pestaña oculta)  
+- Enter envía; Shift+Enter nueva línea  
+- Cuerpos con `textContent` (sin XSS por innerHTML)  
+- Error ventana 24h mostrado en compositor  
+- Envío solo si canal = whatsapp y hilo no cerrado  
+- Al abrir hilo: `mark_read` (unread_count = 0)
 
-Token 401/403 Graph → option `vitacare_crm_graph_token_health=invalid` (visible en `/ping` como `graph_token_health`).
+### Archivos tocados
 
-### Archivo nuevo
-
-- `includes/class-vitacare-crm-graph.php`
-
-### Requisitos para enviar
-
-1. Flag WhatsApp ON  
-2. Access Token + Phone Number ID  
-3. Conversación existente con `external_contact_id` (wa_id)  
-4. Cliente dentro de ventana 24h (habla primero)
+- `template-parts/crm-shell.php`  
+- `assets/css/crm.css`, `assets/js/crm.js`  
+- `includes/class-vitacare-crm-page.php` (i18n + poll)  
+- `mark_read` en conversations repo + REST messages  
 
 ---
 
 ## Siguiente paso
 
-1. **PR-5:** UI bandeja en `/crm` (lista + hilo + compositor que llama a esta API).
-2. Probar envío real con un hilo inbound previo.
+1. **PR-6:** descarga/servir media WhatsApp.  
+2. Instalar v0.6.0 en WordPress y probar bandeja con un hilo real.  
+3. Post-MVP: FB/IG, email, leads UI.
 
 ---
 
@@ -87,6 +78,5 @@ Token 401/403 Graph → option `vitacare_crm_graph_token_health=invalid` (visibl
 
 | Fecha | Qué | Ref |
 |---|---|---|
-| 2026-08-03 | PR-0…PR-2 | `475c4a9`…`bf9d6f6` |
-| 2026-08-03 | PR-3 inbound v0.4.0 | `0c6d51f` |
-| 2026-08-03 | **PR-4 outbound v0.5.0** | este update |
+| 2026-08-03 | PR-0…PR-4 | …`b07f9f2` |
+| 2026-08-03 | **PR-5 bandeja UI v0.6.0** | este update |

@@ -44,8 +44,8 @@ vitacare-crm/
 
 ## Estado
 
-- Plugin **v0.5.0**: WhatsApp **recibir + enviar** por API.
-- **Siguiente:** PR-5 UI bandeja en `/crm`.
+- Plugin **v0.6.0**: WhatsApp + **bandeja visual** en https://vitacareec.org/crm
+- **Siguiente:** PR-6 media; probar en producción con Meta.
 
 Detalle: [`ESTADO_CRM.md`](./ESTADO_CRM.md).
 

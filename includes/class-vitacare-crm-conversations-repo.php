@@ -335,6 +335,25 @@ final class Vitacare_Crm_Conversations_Repo {
 	}
 
 	/**
+	 * Marca conversación como leída (unread_count = 0).
+	 */
+	public static function mark_read( int $conversation_id ): void {
+		global $wpdb;
+		$table = Vitacare_Crm_Db::conversations_table();
+		if ( ! Vitacare_Crm_Db::column_exists( $table, 'unread_count' ) ) {
+			return;
+		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update(
+			$table,
+			array( 'unread_count' => 0 ),
+			array( 'id' => $conversation_id ),
+			array( '%d' ),
+			array( '%d' )
+		);
+	}
+
+	/**
 	 * Actualiza last_message_at y unread_count tras un mensaje nuevo.
 	 */
 	public static function touch_after_message( int $conversation_id, string $created_at, bool $inbound ): void {

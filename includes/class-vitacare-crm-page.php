@@ -107,8 +107,26 @@ final class Vitacare_Crm_Page {
 				'vitacare-crm',
 				'vitacareCrm',
 				array(
-					'restUrl'   => esc_url_raw( rest_url( 'vitacare-crm/v1' ) ),
-					'restNonce' => wp_create_nonce( 'wp_rest' ),
+					'restUrl'      => esc_url_raw( rest_url( 'vitacare-crm/v1' ) ),
+					'restNonce'    => wp_create_nonce( 'wp_rest' ),
+					'pollInterval' => 20000,
+					'i18n'         => array(
+						'emptyList'      => __( 'No hay conversaciones con estos filtros.', 'vitacare-crm' ),
+						'emptyThread'    => __( 'Sin mensajes aún.', 'vitacare-crm' ),
+						'errorLoad'      => __( 'No se pudo cargar la lista.', 'vitacare-crm' ),
+						'errorThread'    => __( 'No se pudo cargar el hilo.', 'vitacare-crm' ),
+						'errorGeneric'   => __( 'Error de red o permisos.', 'vitacare-crm' ),
+						'outsideWindow'  => __( 'Fuera de la ventana de 24 horas. El cliente debe escribir primero.', 'vitacare-crm' ),
+						'hintWa'         => __( 'Solo texto · ventana 24 h de WhatsApp', 'vitacare-crm' ),
+						'hintChannel'    => __( 'Envío solo disponible en WhatsApp por ahora.', 'vitacare-crm' ),
+						'fromStaff'      => __( 'CRM', 'vitacare-crm' ),
+						'fromApp'        => __( 'App', 'vitacare-crm' ),
+						'statusOpen'     => __( 'Abierta', 'vitacare-crm' ),
+						'statusPending'  => __( 'Pendiente', 'vitacare-crm' ),
+						'statusClosed'   => __( 'Cerrada', 'vitacare-crm' ),
+						'email'          => __( 'Correo', 'vitacare-crm' ),
+						'noConfig'       => __( 'CRM no configurado (REST).', 'vitacare-crm' ),
+					),
 				)
 			);
 		}
