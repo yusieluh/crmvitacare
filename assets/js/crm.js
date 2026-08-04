@@ -222,6 +222,7 @@
 				state.selected = conv;
 				renderContext(conv);
 				renderThreadHeader(conv);
+				loadVitacareContact(state.selectedId);
 				return api(
 					'/conversations/' + state.selectedId + '/messages?limit=50'
 				);
@@ -305,6 +306,108 @@
 		Object.keys(map).forEach(function (k) {
 			var node = el.contextDl.querySelector('[data-field="' + k + '"]');
 			if (node) node.textContent = map[k];
+		});
+	}
+
+	function formatMoneyMinor(minor) {
+		var amount = (Number(minor) || 0) / 100;
+		return '$' + amount.toFixed(2);
+	}
+
+	function appointmentStatusLabel(st) {
+		var map = {
+			scheduled: t('apptScheduled', 'Agendada'),
+			in_progress: t('apptInProgress', 'En curso'),
+			completed: t('apptCompleted', 'Completada'),
+			cancelled: t('apptCancelled', 'Cancelada'),
+		};
+		return map[st] || st || '—';
+	}
+
+	function loadVitacareContact(id) {
+		if (!el.vitacareContact) return;
+		el.vitacareContact.hidden = true;
+		if (el.vitacareStatus) {
+			el.vitacareStatus.hidden = false;
+			el.vitacareStatus.textContent = t(
+				'vitacareLooking',
+				'Buscando coincidencia con un usuario de VITACARE…'
+			);
+		}
+		api('/conversations/' + id + '/vitacare-contact')
+			.then(function (data) {
+				if (state.selectedId !== id) return; // el usuario ya cambió de hilo
+				if (data && data.matched) {
+					renderVitacareContact(data);
+				} else {
+					renderVitacareNoMatch();
+				}
+			})
+			.catch(function () {
+				if (state.selectedId !== id) return;
+				if (el.vitacareStatus) {
+					el.vitacareStatus.hidden = false;
+					el.vitacareStatus.textContent = t(
+						'vitacareError',
+						'No se pudo consultar VITACARE.'
+					);
+				}
+			});
+	}
+
+	function renderVitacareNoMatch() {
+		if (el.vitacareStatus) {
+			el.vitacareStatus.hidden = false;
+			el.vitacareStatus.textContent = t(
+				'vitacareNoMatch',
+				'Sin coincidencia con un usuario registrado de VITACARE.'
+			);
+		}
+	}
+
+	function renderVitacareContact(data) {
+		if (el.vitacareStatus) el.vitacareStatus.hidden = true;
+		if (!el.vitacareContact) return;
+		el.vitacareContact.hidden = false;
+
+		var map = {
+			name: data.name || '—',
+			email: data.email || '—',
+			roles: Array.isArray(data.roles) && data.roles.length ? data.roles.join(', ') : '—',
+			membership:
+				data.membership && data.membership.name
+					? data.membership.name + ' (' + statusLabel(data.membership.status) + ')'
+					: t('vitacareNoMembership', 'Sin membresía activa'),
+			pending: formatMoneyMinor(data.pending_payments_minor),
+		};
+		Object.keys(map).forEach(function (k) {
+			var node = el.vitacareDl.querySelector('[data-vf="' + k + '"]');
+			if (node) node.textContent = map[k];
+		});
+
+		el.vitacareAppointments.textContent = '';
+		var appointments = Array.isArray(data.appointments) ? data.appointments : [];
+		if (!appointments.length) {
+			var empty = document.createElement('p');
+			empty.className = 'vcrm-muted';
+			empty.textContent = t('vitacareNoAppointments', 'Sin citas registradas.');
+			el.vitacareAppointments.appendChild(empty);
+			return;
+		}
+		var title = document.createElement('div');
+		title.className = 'vcrm-muted';
+		title.textContent = t('vitacareRecentAppointments', 'Citas recientes:');
+		el.vitacareAppointments.appendChild(title);
+		appointments.forEach(function (a) {
+			var row = document.createElement('div');
+			row.className = 'vcrm-vitacare-appt';
+			row.textContent =
+				(a.service_code || '—') +
+				' · ' +
+				formatTime(a.scheduled_at) +
+				' · ' +
+				appointmentStatusLabel(a.status);
+			el.vitacareAppointments.appendChild(row);
 		});
 	}
 
@@ -589,6 +692,10 @@
 		el.btnClose = $('vcrm-btn-close');
 		el.btnReopen = $('vcrm-btn-reopen');
 		el.contextDl = $('vcrm-context-dl');
+		el.vitacareContact = $('vcrm-vitacare-contact');
+		el.vitacareDl = $('vcrm-vitacare-dl');
+		el.vitacareAppointments = $('vcrm-vitacare-appointments');
+		el.vitacareStatus = $('vcrm-vitacare-status');
 		el.attachBtn = $('vcrm-btn-attach');
 		el.attachInput = $('vcrm-attach-input');
 		el.attachChip = $('vcrm-attach-chip');

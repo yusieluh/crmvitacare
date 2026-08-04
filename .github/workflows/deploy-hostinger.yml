@@ -1,0 +1,55 @@
+name: Deploy a Hostinger (plugin vitacare-crm)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Mismo servidor/sitio que vitacare-demo (ver su .github/workflows/deploy-hostinger.yml),
+      # pero este workflow SOLO toca wp-content/plugins/vitacare-crm/ -- nunca
+      # vitacare-core, el tema, ni la raiz del sitio (regla D-02/D-03 de ESTADO_CRM.md).
+      REMOTE_PATH: /home/u454507676/domains/vitacareec.org/public_html
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar clave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.HOSTINGER_PORT }}" "${{ secrets.HOSTINGER_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Verificar ruta remota antes de sincronizar
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.HOSTINGER_PORT }}" \
+            "${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }}" \
+            "test -d '${REMOTE_PATH}/wp-content/plugins' && echo 'Ruta OK' || (echo 'ERROR: REMOTE_PATH no contiene wp-content/plugins, revisar antes de sincronizar' && exit 1)"
+
+      # Sin --delete a proposito, mismo criterio que vitacare-demo: un path mal
+      # configurado con --delete podria borrar archivos reales del servidor.
+      # Excluye lo mismo que bin/package-plugin.ps1 deja fuera del ZIP de
+      # produccion (.git, dist, tests, bin, .idea/.vscode, .gitignore), mas
+      # .github (el propio workflow no necesita vivir en el plugin desplegado).
+      - name: Sincronizar vitacare-crm
+        run: |
+          rsync -avz \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='dist' \
+            --exclude='tests' \
+            --exclude='bin' \
+            --exclude='.idea' \
+            --exclude='.vscode' \
+            --exclude='.gitignore' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.HOSTINGER_PORT }} -o StrictHostKeyChecking=yes" \
+            ./ \
+            "${{ secrets.HOSTINGER_USER }}@${{ secrets.HOSTINGER_HOST }}:${REMOTE_PATH}/wp-content/plugins/vitacare-crm/"
+
+      - name: Limpiar clave temporal
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

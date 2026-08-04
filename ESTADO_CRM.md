@@ -11,10 +11,10 @@
 | **Clone local típico** | `C:\Users\User\Documents\crmvitacare` |
 | **Sitio (raíz — NO TOCAR)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Plugin** | `vitacare-crm` **v1.3.0** |
-| **DB schema** | **v2** (`vitacare_crm_db_version`) — sin cambios de esquema en C-3/PR-6/PR-6b (`media_url`/`media_mime` ya existían) |
-| **Última actualización docs** | 2026-08-03 |
-| **Último commit de referencia** | PR-6b media saliente (este commit) |
+| **Plugin** | `vitacare-crm` **v1.4.0** |
+| **DB schema** | **v2** (`vitacare_crm_db_version`) — sin cambios de esquema en C-3/PR-6/PR-6b/D-19/D-20 |
+| **Última actualización docs** | 2026-08-04 |
+| **Último commit de referencia** | D-19 puente solo-lectura VITACARE + D-20 despliegue automático a Hostinger (este commit) |
 
 ---
 
@@ -44,7 +44,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 
 ---
 
-## 3. Estado actual del código (v1.3.0) — YA EN GITHUB
+## 3. Estado actual del código (v1.4.0) — YA EN GITHUB
 
 ### 3.1 Entregado y mergeado en `main`
 
@@ -64,6 +64,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 | C-3 Instagram | 1.1.0 | Cuenta profesional vinculada a la Página, webhook `object=instagram`, in/out Graph, bandeja |
 | PR-6 Media | 1.2.0 | Descarga opaca de adjuntos WA/Messenger/IG, servidor propio con cap, imagen/audio/video/documento en la bandeja |
 | **PR-6b Media saliente** | **1.3.0** | Adjuntar archivo al responder por WhatsApp/Messenger: subida multipart directa a Graph (sin URL pública), botón de clip en la bandeja |
+| **D-19 Puente VITACARE + D-20 Despliegue** | **1.4.0** | Ficha de solo lectura del contacto real de VITACARE en el panel de contexto de la bandeja (nombre, correo, rol, membresía, citas recientes, pendiente de pago) + workflow de GitHub Actions para desplegar el plugin a Hostinger automáticamente en cada push a `main` |
 
 ### 3.2 Canales en la bandeja
 
@@ -91,15 +92,23 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 - **Instagram queda fuera** de esta entrega: su Send API (hasta donde se pudo confirmar) espera `attachment.payload.url` públicamente accesible, no un endpoint de subida multipart tipo Messenger — exponer el almacenamiento privado por URL pública contradice el diseño de PR-6, así que se deja pendiente de una decisión de producto explícita en vez de improvisar algo no verificado en un canal usado para comunicación con pacientes.
 - UI: botón 📎 en el compositor (solo WhatsApp/Messenger), sube al elegir archivo, muestra chip con el nombre y permite quitarlo antes de enviar.
 
+### 3.2d Puente de solo lectura a VITACARE (D-19)
+
+- `GET /wp-json/vitacare-crm/v1/conversations/{id}/vitacare-contact` devuelve `{"matched": false}` si no hay coincidencia, o `{"matched": true, "user_id", "name", "email", "roles", "appointments": [...], "membership", "pending_payments_minor"}` si la encuentra.
+- Match: canal `email` → `get_user_by('email', external_contact_id)`; resto de canales → normaliza `contact_phone` a solo dígitos y busca por los últimos 9 dígitos contra `wp_vitacare_profiles.phone` (columna de texto libre, sin formato garantizado).
+- Sin escritura en ninguna tabla `wp_vitacare_*` — solo `SELECT`. Si `vitacare-core` no está instalado o alguna tabla no existe (instalación vieja), responde `matched: false` en vez de un error 500.
+- UI: panel de contexto de la bandeja (`crm-shell.php`/`crm.js`), sección "Contacto en VITACARE" — nombre, correo, rol, membresía activa, hasta 5 citas recientes, total pendiente de pago. Se consulta al abrir cada conversación.
+
 ### 3.3 Estructura de archivos (plugin = raíz del repo)
 
 ```
 crmvitacare/
 ├── ESTADO_CRM.md              ← LEER PRIMERO
 ├── README.md
-├── vitacare-crm.php           ← bootstrap v1.3.0
+├── vitacare-crm.php           ← bootstrap v1.4.0
 ├── uninstall.php
 ├── bin/package-plugin.ps1
+├── .github/workflows/deploy-hostinger.yml  ← D-20: despliegue automático (rsync SSH) a wp-content/plugins/vitacare-crm/
 ├── docs/
 │   ├── CONTINUAR.md           ← handoff Grok/Claude/Cursor
 │   ├── PROCESS.md             ← checklist post-tarea
@@ -117,6 +126,7 @@ crmvitacare/
 │   ├── class-vitacare-crm-webhook.php
 │   ├── class-vitacare-crm-graph.php
 │   ├── class-vitacare-crm-media.php     ← PR-6/6b: descarga/subida/almacenamiento opaco
+│   ├── class-vitacare-crm-vitacare-bridge.php  ← D-19: consultas SQL de solo lectura a wp_vitacare_* (sin dependencia de vitacare-core)
 │   ├── class-vitacare-crm-db.php
 │   ├── class-vitacare-crm-logger.php
 │   ├── class-vitacare-crm-conversations-repo.php
@@ -139,6 +149,7 @@ crmvitacare/
 | `PATCH .../conversations/{id}` | status, assigned_to, wp_user_id |
 | `GET .../media/{message_id}` | PR-6: sirve el adjunto descargado (cap `vitacare_crm_access`) |
 | `POST .../media/upload` | PR-6b: sube un archivo de staff (multipart, cap `vitacare_crm_access`) |
+| `GET .../conversations/{id}/vitacare-contact` | D-19: ficha de solo lectura del contacto en VITACARE si hay match por teléfono/correo (cap `vitacare_crm_access`) |
 | `GET .../ping` | Health (público, sin secretos) |
 
 ### 3.5 Admin WP (capability `manage_options`)
@@ -168,6 +179,8 @@ crmvitacare/
 | D-14–16 | TikTok solo API oficial; DMs solo si existen |
 | D-17 | Instagram no tiene OAuth propio: usa el mismo token de la Página de Facebook ya conectada (`instagram_business_account`); requiere cuenta IG profesional vinculada a esa Página en Meta Business Suite |
 | D-18 | Media saliente por Instagram queda pendiente: su Send API espera `attachment.payload.url` pública; no se expone el almacenamiento privado por URL solo para cumplir eso sin decisión de producto explícita (ver 3.2c) |
+| D-19 | Puente de solo lectura a VITACARE (`Vitacare_Crm_Vitacare_Bridge`): consulta directa por SQL a `wp_users`/`wp_vitacare_profiles`/`wp_vitacare_appointments`/`wp_vitacare_membership_orders`/`wp_vitacare_payments` — sin depender de clases de `vitacare-core` (coherente con D-01/D-02: plugin independiente, cero acoplamiento de código). Match por correo exacto en canal `email`; por teléfono, normalizando a solo dígitos y comparando los últimos 9 (número significativo nacional Ecuador) contra `wp_vitacare_profiles.phone` (texto libre sin formato garantizado). Si una tabla no existe (vitacare-core no instalado o versión vieja), se degrada a "sin match" en vez de fallar. |
+| D-20 | Despliegue automático a Hostinger vía GitHub Actions (`.github/workflows/deploy-hostinger.yml`), mismo patrón SSH+rsync que ya usa `vitacare-demo`, mismos 4 secrets (`HOSTINGER_SSH_KEY`/`HOST`/`PORT`/`USER`) pero copiados aparte a los Settings → Secrets propios de este repo (los secrets de GitHub son por-repo). El rsync sincroniza solo `wp-content/plugins/vitacare-crm/`, nunca toca el resto del sitio; excluye `.git`/`.github`/`dist`/`tests`/`bin`/`.idea`/`.vscode`/`.gitignore` (mismo criterio que el ZIP manual de `bin/package-plugin.ps1`). Sin `--delete`, mismo criterio de seguridad que `vitacare-demo`. |
 
 ---
 
@@ -175,12 +188,16 @@ crmvitacare/
 
 | Prioridad | ID | Trabajo |
 |---|---|---|
-| **Alta — EN CURSO** | **Ops** | Desplegar v1.3.0 en `vitacareec.org` (WP prod). Confirmado con el usuario que `/crm` da 404 porque el plugin **nunca se instaló en el sitio real** — solo existe en GitHub. El usuario pidió instalarlo directo (no solo darle el ZIP) y ofreció credenciales de Hostinger. **Estado: esperando que el usuario pegue credenciales SSH o SFTP** (se le pidieron en el chat, aún no llegan). Ver sección 5b. |
+| **Alta — EN CURSO** | **Ops** | Desplegar en `vitacareec.org` (WP prod) — `/crm` sigue dando 404 porque el plugin **nunca se instaló en el sitio real**, solo existe en GitHub. **Cambio de plan (v1.4.0):** en vez de pedirle al usuario credenciales SSH/SFTP para que una sesión de IA se conecte directo (lo que se intentó antes, ver 5b, sin respuesta del usuario), ahora existe `deploy-hostinger.yml` — el usuario solo necesita cargar los 4 secrets de Hostinger (`HOSTINGER_SSH_KEY`/`HOST`/`PORT`/`USER`) en Settings → Secrets de **este repo** (son independientes de los de `vitacare-demo`, no se heredan) y GitHub Actions hace el despliegue solo en cada push a `main`, sin exponer ninguna credencial en el chat. **Estado: esperando que el usuario cargue esos 4 secrets** — la vía SSH/SFTP interactiva de 5b queda como fallback si prefiere no usar GitHub Secrets. |
+| Alta | **Ops** | Configurar Meta + Google; agregar producto Instagram en la App de Meta; probar `/crm` |
 | Media | **C-6** | TikTok OAuth + spike DM/comentarios/métricas |
 | Media | **D-18** | Decidir si vale la pena exponer media públicamente (con firma/expiración) para habilitar envío de adjuntos por Instagram |
 | Baja | Polish | Leads pipeline (DB v3), roles staff, notificaciones, limpieza de adjuntos subidos y nunca enviados |
+| Baja | **D-19 UI** | El match VITACARE por ahora solo se muestra en el panel de contexto de la bandeja; falta decidir si conviene una acción rápida desde ahí (ej. "Ver ficha completa" hacia `panel-administrador`/`panel-rrhh` de vitacare-demo) — no implementado, solo lectura de datos, ver 3.2d |
 
 ### 5b. Despliegue en producción — retomar aquí primero
+
+> **Actualización v1.4.0:** desde D-20 existe una vía preferida que no requiere nada de lo de abajo — el usuario carga los 4 secrets de Hostinger en Settings → Secrets de este repo y `deploy-hostinger.yml` despliega solo en cada push a `main`, sin que ninguna sesión de IA necesite tocar una credencial SSH/SFTP en el chat. Lo de abajo (pasos 1-7) queda como plan B si el usuario prefiere no usar GitHub Secrets.
 
 Contexto exacto para quien retome (Grok, Claude Code, u otra sesión):
 
@@ -196,8 +213,8 @@ Contexto exacto para quien retome (Grok, Claude Code, u otra sesión):
 
 ### Siguiente paso de ingeniería recomendado
 
-1. `git pull` del repo (ya en `main`, v1.3.0, commit `360fa0c`).  
-2. **Primero: cerrar el despliegue en producción (sección 5b)** — es lo que el usuario está esperando ahora mismo.  
+1. `git pull` del repo (ya en `main`, v1.4.0).  
+2. **Primero: cerrar el despliegue en producción** — pedirle al usuario los 4 secrets de Hostinger para este repo (vía preferida, sección 5) o retomar la vía SSH/SFTP interactiva de 5b si los prefiere no cargar en GitHub. Es lo que el usuario está esperando ahora mismo.  
 3. Completar Coexistence WA + Facebook Page (y cuenta Instagram vinculada) + Gmail en admin, ya en el sitio real.  
 4. Código nuevo (después del despliegue): **C-6 TikTok** o decidir/implementar D-18 (media saliente Instagram).
 
@@ -234,6 +251,7 @@ cd C:\Users\User\Documents\crmvitacare && git pull origin main
 | 2026-08-03 | Regla de rama única (main) para handoff Grok/Claude Code | `b189b27` |
 | 2026-08-03 | PR-6 Media v1.2.0 (descarga opaca WA/Messenger/IG, endpoint `/media/{id}`, render en bandeja) | `f38597b` |
 | 2026-08-03 | **PR-6b Media saliente v1.3.0** (subida multipart WA/Messenger, `/media/upload`, botón de clip en bandeja; Instagram pendiente D-18) | este commit |
+| 2026-08-04 | **D-19 Puente solo-lectura a VITACARE + D-20 Despliegue automático v1.4.0** (`Vitacare_Crm_Vitacare_Bridge`, endpoint `/conversations/{id}/vitacare-contact`, ficha del contacto en el panel de contexto de la bandeja; workflow `.github/workflows/deploy-hostinger.yml` SSH+rsync a `wp-content/plugins/vitacare-crm/`) | este commit |
 
 ---
 

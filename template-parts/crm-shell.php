@@ -143,8 +143,22 @@ $current    = wp_get_current_user();
 					<div><dt><?php echo esc_html__( 'Asignado', 'vitacare-crm' ); ?></dt><dd data-field="assigned">—</dd></div>
 					<div><dt><?php echo esc_html__( 'ID externo', 'vitacare-crm' ); ?></dt><dd data-field="external">—</dd></div>
 				</dl>
+				<div class="vcrm-vitacare-contact" id="vcrm-vitacare-contact" hidden>
+					<h2 class="vcrm-context-title vcrm-vitacare-title"><?php echo esc_html__( 'Contacto en VITACARE', 'vitacare-crm' ); ?></h2>
+					<dl class="vcrm-dl" id="vcrm-vitacare-dl">
+						<div><dt><?php echo esc_html__( 'Nombre', 'vitacare-crm' ); ?></dt><dd data-vf="name">—</dd></div>
+						<div><dt><?php echo esc_html__( 'Correo', 'vitacare-crm' ); ?></dt><dd data-vf="email">—</dd></div>
+						<div><dt><?php echo esc_html__( 'Rol', 'vitacare-crm' ); ?></dt><dd data-vf="roles">—</dd></div>
+						<div><dt><?php echo esc_html__( 'Membresía', 'vitacare-crm' ); ?></dt><dd data-vf="membership">—</dd></div>
+						<div><dt><?php echo esc_html__( 'Pendiente de pago', 'vitacare-crm' ); ?></dt><dd data-vf="pending">—</dd></div>
+					</dl>
+					<div class="vcrm-vitacare-appointments" id="vcrm-vitacare-appointments"></div>
+				</div>
+				<p class="vcrm-muted vcrm-context-note" id="vcrm-vitacare-status">
+					<?php echo esc_html__( 'Buscando coincidencia con un usuario de VITACARE…', 'vitacare-crm' ); ?>
+				</p>
 				<p class="vcrm-muted vcrm-context-note">
-					<?php echo esc_html__( 'Vínculo a paciente WP y leads: próximas fases. No se modifica el sistema principal.', 'vitacare-crm' ); ?>
+					<?php echo esc_html__( 'Datos de VITACARE en modo solo lectura (no se modifica el sistema principal). Gestión de leads: próxima fase.', 'vitacare-crm' ); ?>
 				</p>
 			</aside>
 		</div>

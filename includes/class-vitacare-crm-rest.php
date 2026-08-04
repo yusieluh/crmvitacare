@@ -75,6 +75,16 @@ final class Vitacare_Crm_Rest {
 
 		register_rest_route(
 			'vitacare-crm/v1',
+			'/conversations/(?P<id>\d+)/vitacare-contact',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'get_vitacare_contact' ),
+				'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+			)
+		);
+
+		register_rest_route(
+			'vitacare-crm/v1',
 			'/media/(?P<id>\d+)',
 			array(
 				'methods'             => 'GET',
@@ -148,6 +158,29 @@ final class Vitacare_Crm_Rest {
 			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Conversación no encontrada.', 'vitacare-crm' ), 404 );
 		}
 		return new WP_REST_Response( $item, 200 );
+	}
+
+	/**
+	 * Ficha de solo lectura del contacto en VITACARE (si el teléfono/correo
+	 * de la conversación coincide con un usuario real) -- ver
+	 * Vitacare_Crm_Vitacare_Bridge. `matched: false` es una respuesta
+	 * normal, no un error: la mayoría de contactos nuevos no tendrán
+	 * cuenta todavía.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function get_vitacare_contact( WP_REST_Request $request ) {
+		$id           = (int) $request['id'];
+		$conversation = Vitacare_Crm_Conversations_Repo::get( $id );
+		if ( null === $conversation ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Conversación no encontrada.', 'vitacare-crm' ), 404 );
+		}
+		$profile = Vitacare_Crm_Vitacare_Bridge::lookup_for_conversation( $conversation );
+		if ( null === $profile ) {
+			return new WP_REST_Response( array( 'matched' => false ), 200 );
+		}
+		return new WP_REST_Response( array_merge( array( 'matched' => true ), $profile ), 200 );
 	}
 
 	/**

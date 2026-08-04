@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.3.0** |
+| **Versión** | **1.4.0** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,7 +21,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.3.0
+## Qué incluye v1.4.0
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API), incluida media
@@ -29,9 +29,15 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Instagram Direct: cuenta profesional vinculada a la Página, in/out de texto (misma Página, mismo token); media entrante sí, saliente todavía no
 - Gmail: OAuth, sync INBOX, responder desde bandeja
 - Media (imagen/audio/video/documento): se recibe y se puede **adjuntar al responder** por WhatsApp/Messenger (botón 📎 en la bandeja)
+- **Ficha de VITACARE en la bandeja**: al abrir una conversación, si el contacto coincide (por teléfono o correo) con un usuario real de vitacareec.org, se muestra su nombre, rol, membresía, citas recientes y pendiente de pago — todo de **solo lectura**, sin tocar el sistema principal
+- **Despliegue automático a Hostinger** vía GitHub Actions en cada push a `main` (requiere configurar los secrets del repo, ver `docs/CONTINUAR.md`)
 - Admin: Cuentas, WhatsApp Coexistence, Facebook (+ estado Instagram), Gmail, Credenciales
 
 ## Instalación
+
+**Automática:** con los 4 secrets de Hostinger cargados en Settings → Secrets de este repo, cada push a `main` despliega solo por sí mismo (`.github/workflows/deploy-hostinger.yml`, SSH+rsync a `wp-content/plugins/vitacare-crm/`).
+
+**Manual (respaldo):**
 
 ```powershell
 git clone https://github.com/yusieluh/crmvitacare.git
@@ -70,4 +76,4 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 
 ## Siguiente trabajo
 
-Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (C-6 TikTok, media saliente por Instagram, despliegue prod).
+Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (cargar secrets de Hostinger en este repo, C-6 TikTok, media saliente por Instagram).
