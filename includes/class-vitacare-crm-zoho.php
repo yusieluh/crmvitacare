@@ -724,12 +724,12 @@ final class Vitacare_Crm_Zoho {
 		$redirect  = self::redirect_uri();
 		?>
 		<div class="wrap">
-			<h1><?php echo esc_html__( 'Zoho Mail — Conectar y sincronizar', 'vitacare-crm' ); ?></h1>
+			<h1><?php echo esc_html__( 'Zoho Mail — Correo institucional (canal principal)', 'vitacare-crm' ); ?></h1>
 			<div class="vcrm-callout" style="background:#f0f6fc;border-left:4px solid #2271b1;padding:12px 14px;margin:12px 0">
 				<p style="margin:0">
 					<?php
 					echo esc_html__(
-						'OAuth oficial de Zoho Mail API. Los correos del Inbox se importan al mismo canal «Correo» de la bandeja /crm que usa Gmail -- cada conversación recuerda cuál buzón la maneja para responder por el correcto. Envío de respuestas desde el compositor.',
+						'OAuth oficial de Zoho Mail API. Este es el buzón institucional de VITACARE y el canal principal de correo del CRM. Los correos del Inbox se importan al canal «Correo» de la bandeja /crm; Gmail queda como proveedor secundario/opcional bajo ese mismo canal. Envío de respuestas desde el compositor.',
 						'vitacare-crm'
 					);
 					?>

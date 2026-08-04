@@ -777,12 +777,12 @@ final class Vitacare_Crm_Gmail {
 		$redirect  = self::redirect_uri();
 		?>
 		<div class="wrap">
-			<h1><?php echo esc_html__( 'Gmail — Conectar y sincronizar', 'vitacare-crm' ); ?></h1>
+			<h1><?php echo esc_html__( 'Gmail — Conectar y sincronizar (opcional, secundario)', 'vitacare-crm' ); ?></h1>
 			<div class="vcrm-callout" style="background:#f0f6fc;border-left:4px solid #2271b1;padding:12px 14px;margin:12px 0">
 				<p style="margin:0">
 					<?php
 					echo esc_html__(
-						'OAuth oficial de Google. Los correos del INBOX se importan al canal «email» de la bandeja /crm. Envío de respuestas desde el compositor.',
+						'OAuth oficial de Google. El correo institucional principal es Zoho Mail; Gmail es un buzón secundario/opcional bajo el mismo canal «Correo» de la bandeja /crm. Los correos del INBOX se importan igual y se puede responder desde el compositor.',
 						'vitacare-crm'
 					);
 					?>
