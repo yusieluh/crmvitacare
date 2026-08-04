@@ -43,6 +43,12 @@ final class Vitacare_Crm_Upgrader {
 			update_option( 'vitacare_crm_db_version', '4', false );
 			$current = '4';
 		}
+
+		if ( version_compare( $current, '5', '<' ) && version_compare( $target, '5', '>=' ) ) {
+			self::upgrade_to_5();
+			update_option( 'vitacare_crm_db_version', '5', false );
+			$current = '5';
+		}
 	}
 
 	/**
@@ -100,6 +106,13 @@ final class Vitacare_Crm_Upgrader {
 	 */
 	public static function upgrade_to_4(): void {
 		Vitacare_Crm_Activator::install_tables_v4();
+	}
+
+	/**
+	 * DB v5 (D-26 Fase 4): campañas de correo con opt-in.
+	 */
+	public static function upgrade_to_5(): void {
+		Vitacare_Crm_Activator::install_tables_v5();
 	}
 
 	public static function ensure_caps(): void {

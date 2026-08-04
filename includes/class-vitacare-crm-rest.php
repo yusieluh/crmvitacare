@@ -196,7 +196,58 @@ final class Vitacare_Crm_Rest {
 			)
 		);
 
+		// D-26 Fase 4: baja pública de campañas de correo (sin auth -- se abre
+		// desde el enlace del correo, el token en sí es la única credencial).
+		register_rest_route(
+			'vitacare-crm/v1',
+			'/unsubscribe/(?P<token>[a-zA-Z0-9-]+)',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'unsubscribe' ),
+					'permission_callback' => '__return_true',
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( __CLASS__, 'unsubscribe' ),
+					'permission_callback' => '__return_true',
+				),
+			)
+		);
+
 		Vitacare_Crm_Webhook::register_routes();
+	}
+
+	/**
+	 * Página HTML mínima de confirmación de baja -- se abre directamente en
+	 * el navegador desde un enlace de correo, no es un consumidor JSON.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 */
+	public static function unsubscribe( WP_REST_Request $request ): void {
+		$token   = (string) $request['token'];
+		$lead_id = Vitacare_Crm_Leads_Repo::resolve_unsubscribe_token( $token );
+		if ( null === $lead_id ) {
+			self::unsubscribe_html( 404, __( 'Enlace de baja inválido.', 'vitacare-crm' ) );
+			exit;
+		}
+		$result = Vitacare_Crm_Leads_Repo::set_consent( $lead_id, 'opted_out', 'unsubscribe_link' );
+		if ( is_wp_error( $result ) ) {
+			self::unsubscribe_html( 500, __( 'No se pudo procesar la baja. Intenta de nuevo más tarde.', 'vitacare-crm' ) );
+			exit;
+		}
+		self::unsubscribe_html( 200, __( 'Listo, no volverás a recibir estos correos de VITACARE.', 'vitacare-crm' ) );
+		exit;
+	}
+
+	private static function unsubscribe_html( int $code, string $message ): void {
+		nocache_headers();
+		status_header( $code );
+		header( 'Content-Type: text/html; charset=UTF-8' );
+		header( 'X-Robots-Tag: noindex, nofollow' );
+		echo '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>VITACARE</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>'
+			. '<body style="font-family:sans-serif;max-width:480px;margin:60px auto;text-align:center;color:#1d2327;padding:0 20px">'
+			. '<h1 style="font-size:20px">VITACARE</h1><p>' . esc_html( $message ) . '</p></body></html>';
 	}
 
 	/**

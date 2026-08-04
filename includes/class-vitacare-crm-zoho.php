@@ -655,6 +655,59 @@ final class Vitacare_Crm_Zoho {
 		);
 	}
 
+	/**
+	 * D-26 Fase 4: envío suelto de campaña (sin conversación/hilo de
+	 * soporte asociado, a diferencia de send_text()). El llamador es
+	 * responsable de verificar opt-in antes de invocar esto.
+	 *
+	 * @return true|WP_Error
+	 */
+	public static function send_campaign_email( string $to_email, string $subject, string $body_plain ) {
+		if ( ! self::is_connected() ) {
+			return new WP_Error( 'vitacare_crm_forbidden', __( 'Zoho Mail no está conectado.', 'vitacare-crm' ) );
+		}
+		if ( ! is_email( $to_email ) ) {
+			return new WP_Error( 'vitacare_crm_invalid_param', __( 'Destinatario de email inválido.', 'vitacare-crm' ) );
+		}
+
+		$token = self::get_access_token();
+		if ( is_wp_error( $token ) ) {
+			return $token;
+		}
+
+		$response = wp_remote_post(
+			self::api_base() . '/api/accounts/' . rawurlencode( self::get_account_id() ) . '/messages',
+			array(
+				'timeout' => 25,
+				'headers' => array(
+					'Authorization' => 'Zoho-oauthtoken ' . $token,
+					'Content-Type'  => 'application/json',
+				),
+				'body'    => wp_json_encode(
+					array(
+						'fromAddress' => self::get_email(),
+						'toAddress'   => $to_email,
+						'subject'     => $subject,
+						'content'     => $body_plain,
+						'mailFormat'  => 'plaintext',
+					)
+				),
+			)
+		);
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error( 'vitacare_crm_graph_error', __( 'Error de red al enviar el correo por Zoho.', 'vitacare-crm' ) );
+		}
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$data = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		if ( $code < 200 || $code >= 300 || ! is_array( $data ) ) {
+			$msg = is_array( $data ) && isset( $data['status']['description'] )
+				? (string) $data['status']['description']
+				: __( 'Zoho Mail rechazó el envío.', 'vitacare-crm' );
+			return new WP_Error( 'vitacare_crm_graph_error', $msg );
+		}
+		return true;
+	}
+
 	private static function flash( string $type, string $msg ): void {
 		set_transient( 'vitacare_crm_zoho_flash', array( 'type' => $type, 'msg' => $msg ), 60 );
 	}

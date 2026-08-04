@@ -706,6 +706,61 @@ final class Vitacare_Crm_Gmail {
 		);
 	}
 
+	/**
+	 * D-26 Fase 4: envío suelto de campaña (sin conversación/hilo de
+	 * soporte asociado, a diferencia de send_text()). El llamador es
+	 * responsable de verificar opt-in antes de invocar esto.
+	 *
+	 * @return true|WP_Error
+	 */
+	public static function send_campaign_email( string $to_email, string $subject, string $body_plain ) {
+		if ( ! self::is_connected() ) {
+			return new WP_Error( 'vitacare_crm_forbidden', __( 'Gmail no está conectado.', 'vitacare-crm' ) );
+		}
+		if ( ! is_email( $to_email ) ) {
+			return new WP_Error( 'vitacare_crm_invalid_param', __( 'Destinatario de email inválido.', 'vitacare-crm' ) );
+		}
+
+		$raw_mime  = 'From: ' . self::get_email() . "\r\n";
+		$raw_mime .= 'To: ' . $to_email . "\r\n";
+		$raw_mime .= 'Subject: ' . self::encode_subject( $subject ) . "\r\n";
+		$raw_mime .= "MIME-Version: 1.0\r\n";
+		$raw_mime .= "Content-Type: text/plain; charset=UTF-8\r\n";
+		$raw_mime .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+		$raw_mime .= $body_plain;
+
+		$raw_b64 = rtrim( strtr( base64_encode( $raw_mime ), '+/', '-_' ), '=' ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+
+		$token = self::get_access_token();
+		if ( is_wp_error( $token ) ) {
+			return $token;
+		}
+
+		$response = wp_remote_post(
+			'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+			array(
+				'timeout' => 25,
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $token,
+					'Content-Type'  => 'application/json',
+				),
+				'body'    => wp_json_encode( array( 'raw' => $raw_b64 ) ),
+			)
+		);
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error( 'vitacare_crm_graph_error', __( 'Error de red al enviar el correo.', 'vitacare-crm' ) );
+		}
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$data = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		if ( $code < 200 || $code >= 300 || ! is_array( $data ) || empty( $data['id'] ) ) {
+			$msg = is_array( $data ) && isset( $data['error']['message'] )
+				? (string) $data['error']['message']
+				: __( 'Gmail rechazó el envío.', 'vitacare-crm' );
+			return new WP_Error( 'vitacare_crm_graph_error', $msg );
+		}
+		return true;
+	}
+
 	private static function encode_subject( string $subject ): string {
 		if ( preg_match( '/[^\x20-\x7E]/', $subject ) ) {
 			return '=?UTF-8?B?' . base64_encode( $subject ) . '?='; // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode

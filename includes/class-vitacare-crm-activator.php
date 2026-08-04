@@ -4,8 +4,8 @@ defined( 'ABSPATH' ) || exit;
 final class Vitacare_Crm_Activator {
 
 	public static function activate(): void {
-		// Instalación limpia = esquema actual (v4).
-		self::install_tables_v4();
+		// Instalación limpia = esquema actual (v5).
+		self::install_tables_v5();
 		self::ensure_capability();
 		self::install_page();
 		update_option( 'vitacare_crm_db_version', VITACARE_CRM_DB_VERSION, false );
@@ -181,6 +181,54 @@ final class Vitacare_Crm_Activator {
 				UNIQUE KEY code_unique (code),
 				KEY campaign_tag (campaign_tag),
 				KEY lead_id (lead_id)
+			) {$charset_collate};"
+		);
+	}
+
+	/**
+	 * Esquema v5 (D-26 Fase 4): campañas de correo con opt-in.
+	 */
+	public static function install_tables_v5(): void {
+		self::install_tables_v4();
+
+		global $wpdb;
+		$charset_collate = $wpdb->get_charset_collate();
+		$campaigns        = $wpdb->prefix . 'vitacare_crm_email_campaigns';
+		$recipients        = $wpdb->prefix . 'vitacare_crm_campaign_recipients';
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		dbDelta(
+			"CREATE TABLE {$campaigns} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				subject VARCHAR(255) NOT NULL,
+				body LONGTEXT NOT NULL,
+				segment_tag VARCHAR(100) NULL,
+				status VARCHAR(20) NOT NULL DEFAULT 'draft',
+				daily_cap INT UNSIGNED NOT NULL DEFAULT 200,
+				total_recipients INT UNSIGNED NOT NULL DEFAULT 0,
+				sent_count INT UNSIGNED NOT NULL DEFAULT 0,
+				created_by BIGINT UNSIGNED NULL,
+				created_at DATETIME NOT NULL,
+				updated_at DATETIME NULL,
+				PRIMARY KEY  (id),
+				KEY status (status)
+			) {$charset_collate};"
+		);
+
+		dbDelta(
+			"CREATE TABLE {$recipients} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				campaign_id BIGINT UNSIGNED NOT NULL,
+				lead_id BIGINT UNSIGNED NOT NULL,
+				email VARCHAR(191) NOT NULL,
+				status VARCHAR(20) NOT NULL DEFAULT 'pending',
+				sent_at DATETIME NULL,
+				error VARCHAR(255) NULL,
+				created_at DATETIME NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY campaign_lead_unique (campaign_id, lead_id),
+				KEY campaign_status (campaign_id, status)
 			) {$charset_collate};"
 		);
 	}

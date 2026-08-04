@@ -122,6 +122,33 @@ final class Vitacare_Crm_Reports {
 				</div>
 			</div>
 
+			<?php if ( class_exists( 'Vitacare_Crm_Email_Campaigns_Repo' ) ) : ?>
+				<?php $campaigns_list = Vitacare_Crm_Email_Campaigns_Repo::list_campaigns(); ?>
+				<h2><?php echo esc_html__( 'Campañas de correo', 'vitacare-crm' ); ?></h2>
+				<table class="widefat striped" style="max-width:640px">
+					<thead>
+						<tr>
+							<th><?php echo esc_html__( 'Asunto', 'vitacare-crm' ); ?></th>
+							<th><?php echo esc_html__( 'Estado', 'vitacare-crm' ); ?></th>
+							<th><?php echo esc_html__( 'Enviados', 'vitacare-crm' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php if ( empty( $campaigns_list ) ) : ?>
+							<tr><td colspan="3"><?php echo esc_html__( 'Sin campañas todavía. Créalas en CRM VITACARE → Campañas de correo.', 'vitacare-crm' ); ?></td></tr>
+						<?php else : ?>
+							<?php foreach ( array_slice( $campaigns_list, 0, 10 ) as $camp ) : ?>
+								<tr>
+									<td><?php echo esc_html( $camp['subject'] ); ?></td>
+									<td><?php echo esc_html( $camp['status'] ); ?></td>
+									<td><?php echo esc_html( sprintf( '%d / %d', $camp['sent_count'], $camp['total_recipients'] ) ); ?></td>
+								</tr>
+							<?php endforeach; ?>
+						<?php endif; ?>
+					</tbody>
+				</table>
+			<?php endif; ?>
+
 			<?php if ( class_exists( 'Vitacare_Crm_Links_Repo' ) ) : ?>
 				<?php $campaigns = Vitacare_Crm_Links_Repo::clicks_by_campaign(); ?>
 				<h2><?php echo esc_html__( 'Clics por campaña (enlaces con seguimiento propio)', 'vitacare-crm' ); ?></h2>

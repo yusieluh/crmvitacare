@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.9.0** |
+| **Versión** | **1.10.0** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,7 +21,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.9.0
+## Qué incluye v1.10.0
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API), incluida media
@@ -36,7 +36,8 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - **Reportes** (Fase 1 de métricas/marketing gratuito, D-23): mensajes por canal, volumen diario, conversaciones por estado, tiempo de primera respuesta, carga por agente — todo sobre datos ya guardados en el CRM. Badge de salud de WhatsApp (calidad + límite de mensajería, vía Graph API). El cupo mensual de mensajes salientes ahora **bloquea de verdad** el envío al superarse (antes solo avisaba), aplicado a WhatsApp, Messenger e Instagram
 - **Leads** (Fase 2, D-24): pipeline de contactos de marketing separado de la bandeja de soporte. Cada contacto nuevo (o existente) recibe automáticamente un lead con consentimiento "desconocido" — escribir al CRM no es opt-in, eso se marca a mano. Alta manual, filtros, import CSV, opt-in/opt-out con rastro de origen, y "Convertir a conversación" para abrir el hilo desde `/crm`
 - **Enlaces** (Fase 3, D-25): enlaces cortos propios con UTM incrustado y contador de clics — sin depender de Bitly ni ningún acortador de terceros. Redirector público, sección "Clics por campaña" en Reportes
-- Admin: Cuentas, Reportes, Leads, Enlaces, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
+- **Campañas de correo** (Fase 4, D-26): envío masivo (Zoho principal/Gmail secundario) solo a leads con opt-in explícito — el consentimiento se re-verifica en cada envío, no solo al crear la campaña. Despacho por lotes vía cron respetando un cupo diario, pie de baja obligatorio con enlace público sin login
+- Admin: Cuentas, Reportes, Leads, Enlaces, Campañas de correo, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
 
 ## Instalación
 
@@ -62,6 +63,7 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 | Reportes | Métricas locales + salud de WhatsApp |
 | Leads | Pipeline de contactos de marketing |
 | Enlaces | Enlaces cortos propios con UTM/clics |
+| Campañas de correo | Envío masivo solo a leads con opt-in |
 | WhatsApp (oficial) | Checklist Coexistence |
 | Facebook | Conectar + elegir Página |
 | TikTok | Conectar (solo verifica cuenta, sin mensajería) |
@@ -88,4 +90,4 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 
 ## Siguiente trabajo
 
-Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (conectar Facebook/Instagram/Gmail/Zoho en el sitio real, media saliente por Instagram, y Fases 4-5 del plan de métricas/marketing gratuito — campañas de correo, Insights de Meta — cada una requiere visto bueno explícito del usuario antes de arrancar).
+Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (conectar Facebook/Instagram/Gmail/Zoho en el sitio real, media saliente por Instagram, y Fase 5 del plan de métricas/marketing gratuito — Insights de Meta — requiere visto bueno explícito del usuario antes de arrancar).

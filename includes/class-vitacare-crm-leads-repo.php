@@ -103,6 +103,60 @@ final class Vitacare_Crm_Leads_Repo {
 	}
 
 	/**
+	 * Todos los leads con opt-in y correo, sin el tope de paginación de
+	 * list() -- usado por D-26 Fase 4 (campañas de correo) para tomar la
+	 * foto completa del segmento al crear una campaña.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function all_opted_in_with_email( string $tag = '' ): array {
+		global $wpdb;
+		if ( ! self::ready() ) {
+			return array();
+		}
+		$table  = self::table();
+		$where  = array( "consent_status = 'opted_in'", 'email IS NOT NULL', "email != ''" );
+		$params = array();
+
+		$tag = sanitize_text_field( $tag );
+		if ( $tag !== '' ) {
+			$where[]  = 'tags LIKE %s';
+			$params[] = '%' . $wpdb->esc_like( $tag ) . '%';
+		}
+
+		$sql = "SELECT * FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY id ASC';
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$rows = ! empty( $params ) ? $wpdb->get_results( $wpdb->prepare( $sql, $params ) ) : $wpdb->get_results( $sql );
+
+		$out = array();
+		foreach ( (array) $rows as $row ) {
+			$out[] = self::format( $row );
+		}
+		return $out;
+	}
+
+	/**
+	 * Token de baja sin estado (no requiere columna nueva): firma HMAC del
+	 * lead_id con las sales de WordPress. Si `wp_hash()` rota (cambio de
+	 * salts), los enlaces viejos dejan de servir -- riesgo aceptado frente
+	 * a agregar una columna solo para esto.
+	 */
+	public static function unsubscribe_token( int $lead_id ): string {
+		return $lead_id . '-' . substr( wp_hash( 'vcrm-unsub-' . $lead_id, 'auth' ), 0, 20 );
+	}
+
+	public static function resolve_unsubscribe_token( string $token ): ?int {
+		if ( ! preg_match( '/^(\d+)-([a-f0-9]{20})$/', $token, $m ) ) {
+			return null;
+		}
+		$lead_id = (int) $m[1];
+		if ( $lead_id <= 0 || ! hash_equals( self::unsubscribe_token( $lead_id ), $token ) ) {
+			return null;
+		}
+		return $lead_id;
+	}
+
+	/**
 	 * @return array<string, mixed>|null
 	 */
 	public static function get( int $id ): ?array {
