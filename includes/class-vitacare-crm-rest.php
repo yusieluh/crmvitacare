@@ -103,7 +103,177 @@ final class Vitacare_Crm_Rest {
 			)
 		);
 
+		register_rest_route(
+			'vitacare-crm/v1',
+			'/leads',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'list_leads' ),
+					'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+					'args'                => array(
+						'source'         => array( 'type' => 'string', 'required' => false ),
+						'consent_status' => array( 'type' => 'string', 'required' => false ),
+						'tag'            => array( 'type' => 'string', 'required' => false ),
+						'q'              => array( 'type' => 'string', 'required' => false ),
+						'page'           => array( 'type' => 'integer', 'required' => false, 'default' => 1 ),
+						'per_page'       => array( 'type' => 'integer', 'required' => false, 'default' => 20 ),
+					),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( __CLASS__, 'create_lead' ),
+					'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			'vitacare-crm/v1',
+			'/leads/(?P<id>\d+)',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'get_lead' ),
+					'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+				),
+				array(
+					'methods'             => 'PUT',
+					'callback'            => array( __CLASS__, 'update_lead' ),
+					'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			'vitacare-crm/v1',
+			'/leads/(?P<id>\d+)/consent',
+			array(
+				'methods'             => 'PUT',
+				'callback'            => array( __CLASS__, 'set_lead_consent' ),
+				'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+			)
+		);
+
+		register_rest_route(
+			'vitacare-crm/v1',
+			'/leads/import',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'import_leads' ),
+				'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+			)
+		);
+
 		Vitacare_Crm_Webhook::register_routes();
+	}
+
+	/**
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function list_leads( WP_REST_Request $request ) {
+		$result = Vitacare_Crm_Leads_Repo::list(
+			array(
+				'source'         => $request->get_param( 'source' ),
+				'consent_status' => $request->get_param( 'consent_status' ),
+				'tag'            => $request->get_param( 'tag' ),
+				'q'              => $request->get_param( 'q' ),
+				'page'           => $request->get_param( 'page' ),
+				'per_page'       => $request->get_param( 'per_page' ),
+			)
+		);
+		return new WP_REST_Response( $result, 200 );
+	}
+
+	/**
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function get_lead( WP_REST_Request $request ) {
+		$item = Vitacare_Crm_Leads_Repo::get( (int) $request['id'] );
+		if ( null === $item ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_not_found', __( 'Lead no encontrado.', 'vitacare-crm' ), 404 );
+		}
+		return new WP_REST_Response( $item, 200 );
+	}
+
+	/**
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function create_lead( WP_REST_Request $request ) {
+		$body = $request->get_json_params();
+		if ( ! is_array( $body ) ) {
+			$body = $request->get_body_params();
+		}
+		if ( ! is_array( $body ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_invalid_param', __( 'Cuerpo JSON inválido.', 'vitacare-crm' ), 400 );
+		}
+		$result = Vitacare_Crm_Leads_Repo::create( $body );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return new WP_REST_Response( $result, 201 );
+	}
+
+	/**
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function update_lead( WP_REST_Request $request ) {
+		$body = $request->get_json_params();
+		if ( ! is_array( $body ) ) {
+			$body = $request->get_body_params();
+		}
+		if ( ! is_array( $body ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_invalid_param', __( 'Cuerpo JSON inválido.', 'vitacare-crm' ), 400 );
+		}
+		$result = Vitacare_Crm_Leads_Repo::update( (int) $request['id'], $body );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return new WP_REST_Response( $result, 200 );
+	}
+
+	/**
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function set_lead_consent( WP_REST_Request $request ) {
+		$body = $request->get_json_params();
+		if ( ! is_array( $body ) ) {
+			$body = $request->get_body_params();
+		}
+		$status = is_array( $body ) && isset( $body['status'] ) ? (string) $body['status'] : '';
+		$source = is_array( $body ) && isset( $body['source'] ) ? (string) $body['source'] : 'api';
+
+		$result = Vitacare_Crm_Leads_Repo::set_consent( (int) $request['id'], $status, $source );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return new WP_REST_Response( $result, 200 );
+	}
+
+	/**
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function import_leads( WP_REST_Request $request ) {
+		$files = $request->get_file_params();
+		$csv   = '';
+		if ( ! empty( $files['file']['tmp_name'] ) && is_uploaded_file( $files['file']['tmp_name'] ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_file_get_contents
+			$csv = (string) file_get_contents( $files['file']['tmp_name'] );
+		} else {
+			$body = $request->get_json_params();
+			$csv  = is_array( $body ) && isset( $body['csv'] ) ? (string) $body['csv'] : '';
+		}
+		if ( $csv === '' ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_invalid_param', __( 'Falta el CSV (archivo o campo "csv").', 'vitacare-crm' ), 400 );
+		}
+		$result = Vitacare_Crm_Leads_Repo::import_csv( $csv );
+		return new WP_REST_Response( $result, 200 );
 	}
 
 	public static function ping(): WP_REST_Response {

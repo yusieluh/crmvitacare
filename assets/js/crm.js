@@ -770,6 +770,13 @@
 
 		loadList().then(function () {
 			startPoll();
+			// Deep link (?c=ID) desde enlaces externos, p. ej. "Ver hilo" en
+			// CRM VITACARE → Leads (D-23 Fase 2).
+			var params = new URLSearchParams(window.location.search);
+			var deepLinkId = parseInt(params.get('c'), 10);
+			if (deepLinkId > 0) {
+				selectConversation(deepLinkId);
+			}
 		});
 	}
 

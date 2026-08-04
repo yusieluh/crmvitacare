@@ -31,6 +31,12 @@ final class Vitacare_Crm_Upgrader {
 			update_option( 'vitacare_crm_db_version', '2', false );
 			$current = '2';
 		}
+
+		if ( version_compare( $current, '3', '<' ) && version_compare( $target, '3', '>=' ) ) {
+			self::upgrade_to_3();
+			update_option( 'vitacare_crm_db_version', '3', false );
+			$current = '3';
+		}
 	}
 
 	/**
@@ -68,6 +74,19 @@ final class Vitacare_Crm_Upgrader {
 		$wpdb->query( "UPDATE {$conversations} SET unread_count = 0 WHERE unread_count IS NULL" );
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$wpdb->query( "UPDATE {$conversations} SET updated_at = created_at WHERE updated_at IS NULL AND created_at IS NOT NULL" );
+	}
+
+	/**
+	 * DB v3 (D-23 Fase 2): tabla de leads + columna lead_id en conversations.
+	 */
+	public static function upgrade_to_3(): void {
+		global $wpdb;
+
+		Vitacare_Crm_Activator::install_tables_v3();
+
+		$conversations = $wpdb->prefix . 'vitacare_crm_conversations';
+		self::add_column_if_missing( $conversations, 'lead_id', 'BIGINT UNSIGNED NULL' );
+		self::add_index_if_missing( $conversations, 'lead_id', 'lead_id' );
 	}
 
 	public static function ensure_caps(): void {

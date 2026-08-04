@@ -304,6 +304,7 @@ final class Vitacare_Crm_Conversations_Repo {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 				$wpdb->update( $table, $update, array( 'id' => (int) $existing->id ), $formats, array( '%d' ) );
 			}
+			self::maybe_ensure_lead( (int) $existing->id, $channel, $external_contact_id, $contact_name, $contact_phone );
 			return (int) $existing->id;
 		}
 
@@ -349,7 +350,24 @@ final class Vitacare_Crm_Conversations_Repo {
 			Vitacare_Crm_Logger::error( 'conversation_insert_failed', array( 'db' => $wpdb->last_error ) );
 			return 0;
 		}
-		return (int) $wpdb->insert_id;
+		$new_id = (int) $wpdb->insert_id;
+		self::maybe_ensure_lead( $new_id, $channel, $external_contact_id, $contact_name, $contact_phone );
+		return $new_id;
+	}
+
+	/**
+	 * D-23 Fase 2: auto-alta de lead (consent_status='unknown') si la
+	 * conversación todavía no tiene uno asociado. No-op si Leads_Repo o la
+	 * columna lead_id no existen (sitio sin actualizar a DB v3 todavía).
+	 * Para el canal `email`, external_contact_id ES la dirección de correo
+	 * (contact_phone siempre es null en ese canal, ver Gmail/Zoho import_message).
+	 */
+	private static function maybe_ensure_lead( int $conversation_id, string $channel, string $external_contact_id, ?string $contact_name, ?string $contact_phone ): void {
+		if ( ! class_exists( 'Vitacare_Crm_Leads_Repo' ) ) {
+			return;
+		}
+		$email = 'email' === $channel ? $external_contact_id : null;
+		Vitacare_Crm_Leads_Repo::ensure_lead_for_conversation( $conversation_id, $channel, $contact_name, $contact_phone, $email );
 	}
 
 	/**

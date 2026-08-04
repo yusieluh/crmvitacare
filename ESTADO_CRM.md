@@ -11,10 +11,10 @@
 | **Clone local típico** | `C:\Users\User\Documents\crmvitacare` |
 | **Sitio (raíz — NO TOCAR)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Plugin** | `vitacare-crm` **v1.7.0** |
-| **DB schema** | **v2** (`vitacare_crm_db_version`) — sin cambios de esquema en C-3/PR-6/PR-6b/D-19/D-20/C-6/D-22/D-23 |
+| **Plugin** | `vitacare-crm` **v1.8.0** |
+| **DB schema** | **v3** (`vitacare_crm_db_version`) — D-24 agrega tabla `wp_vitacare_crm_leads` + columna `lead_id` en conversations; sin cambios de esquema en C-3/PR-6/PR-6b/D-19/D-20/C-6/D-22/D-23 |
 | **Última actualización docs** | 2026-08-04 |
-| **Último commit de referencia** | D-23 Fase 1 de métricas/marketing gratuito: dashboard de Reportes, salud de WhatsApp, cupo saliente endurecido a bloqueo real (este commit) |
+| **Último commit de referencia** | D-24 Fase 2 de métricas/marketing gratuito: pipeline de leads (DB v3), admin Leads, auto-alta desde conversaciones, opt-in/opt-out, import CSV, convertir a conversación (este commit) |
 
 ---
 
@@ -44,7 +44,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 
 ---
 
-## 3. Estado actual del código (v1.7.0) — YA EN GITHUB
+## 3. Estado actual del código (v1.8.0) — YA EN GITHUB
 
 ### 3.1 Entregado y mergeado en `main`
 
@@ -68,6 +68,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 | **C-6 TikTok Login Kit** | **1.5.0** | Conector OAuth v2 oficial (`Vitacare_Crm_Tiktok_Oauth`): conecta y verifica una cuenta de TikTok (nombre, avatar, ID). **Spike concluido: TikTok no tiene ninguna API pública para DMs ni comentarios de terceros** — por eso no se agregó canal de mensajería ni webhook, a diferencia de WhatsApp/Messenger/Instagram/Gmail. Ver D-21. |
 | **D-22 Zoho Mail** | **1.6.0 / 1.6.1** | `Vitacare_Crm_Zoho`, OAuth v2 oficial de Zoho Mail API (authorize, oauth/token, cuentas, carpetas, mensajes). Mismo canal `email` de la bandeja que ya usa Gmail — cada conversación guarda en `meta.mail_provider` cuál buzón la maneja. **Zoho Mail es el correo institucional y el proveedor por defecto del canal; Gmail queda como secundario/opcional** (ajuste en 1.6.1: el fallback de envío pasó de `gmail` a `zoho`, orden de tarjetas en Cuentas conectadas invertido). |
 | **D-23 Fase 1 métricas/marketing gratuito** | **1.7.0** | `Vitacare_Crm_Reports` (dashboard `CRM VITACARE → Reportes`: mensajes por canal, volumen diario, conversaciones por estado, tiempo de primera respuesta, carga por agente — todo calculado sobre datos ya guardados). `Vitacare_Crm_Graph::get()` nuevo (antes solo `post()`) para leer `quality_rating`/`whatsapp_business_manager_messaging_limit` del número de WhatsApp (`Vitacare_Crm_Channel_Whatsapp::health()`, cacheado 15 min), mostrado como badge en Cuentas conectadas y en Reportes. **El cupo mensual de mensajes salientes (`vitacare_crm_outbound_soft_limit`) pasa de solo-loguear a bloquear de verdad el envío** al superarse, aplicado ahora también a Messenger e Instagram (antes solo WhatsApp lo tenía, y ni siquiera bloqueaba). Sin tablas nuevas ni cambio de DB schema. |
+| **D-24 Fase 2 pipeline de leads** | **1.8.0** | DB v3: tabla nueva `wp_vitacare_crm_leads` + columna real `lead_id` en `wp_vitacare_crm_conversations` (ya se referenciaba defensivamente, nunca existía). `Vitacare_Crm_Leads_Repo` (CRUD, opt-in/opt-out con rastro de origen/fecha, import CSV, dedupe por teléfono/correo). Auto-alta de lead (`consent_status='unknown'`) en cada contacto nuevo o existente sin lead vía `Vitacare_Crm_Conversations_Repo::upsert_contact()`. Admin `CRM VITACARE → Leads` (crear manual, filtrar, opt-in/opt-out, importar CSV, "Convertir a conversación"). Endpoints REST `GET/POST /leads`, `GET/PUT /leads/{id}`, `PUT /leads/{id}/consent`, `POST /leads/import`. Deep link `?c=ID` agregado a la bandeja (`crm.js`) para que "Ver hilo" desde Leads abra la conversación directamente. |
 
 ### 3.2 Canales en la bandeja
 
@@ -124,7 +125,16 @@ Primera de 5 fases de un plan mayor (herramientas de marketing/métricas respeta
 - **Salud de WhatsApp**: `Vitacare_Crm_Channel_Whatsapp::health()` hace un GET de solo lectura a Graph (`quality_rating` + `whatsapp_business_manager_messaging_limit` del phone number), cacheado 15 min en transient. Se muestra como badge en la tarjeta de WhatsApp de Cuentas conectadas (si la calidad no es `GREEN`, la tarjeta pasa a estado de error) y en la sección "Salud de WhatsApp" de Reportes. Requirió agregar `Vitacare_Crm_Graph::get()` (antes la clase solo tenía `post()`).
 - **Cupo de envíos salientes endurecido**: `vitacare_crm_outbound_soft_limit` (Credenciales) antes solo escribía un log al superarse y el envío seguía; ahora **bloquea de verdad** (`WP_Error` 429, `vitacare_crm_quota_exceeded`) en WhatsApp (texto y media) y, nuevo, también en Messenger e Instagram (antes sin ningún contador). Cada canal lleva su propio contador mensual (`vitacare_crm_outbound_count_{channel}_{Y_m}`, salvo WhatsApp que conserva su option histórica sin sufijo de canal por compatibilidad).
 - **Explícitamente descartado en esta fase (decisión del usuario)**: plantillas de marketing de WhatsApp fuera de la ventana de 24h (tienen costo por mensaje de Meta, choca con "todo gratis") y mensajes promocionales por Messenger/Instagram fuera de ventana (Meta ya no permite esos *message tags*, sería violar política). WhatsApp/Messenger/Instagram siguen siendo solo texto libre dentro de la ventana de 24h, igual que antes.
-- **Fases 2-5 pendientes** (leads pipeline DB v3, enlaces con seguimiento propio, campañas de correo con opt-in, Insights gratis de Meta): **no implementadas todavía** — el usuario pidió entrega fase por fase con su visto bueno explícito antes de cada una siguiente. No adelantar sin confirmación.
+- **Fases 3-5 pendientes** (enlaces con seguimiento propio, campañas de correo con opt-in, Insights gratis de Meta): **no implementadas todavía** — el usuario pidió entrega fase por fase con su visto bueno explícito antes de cada una siguiente. No adelantar sin confirmación.
+
+### 3.2h Fase 2 — Pipeline de leads, DB v3 (D-24)
+
+- **Tabla `wp_vitacare_crm_leads`** (DB v3, `Vitacare_Crm_Upgrader::upgrade_to_3()` / `Vitacare_Crm_Activator::install_tables_v3()`): `id, name, phone, email, source (manual|whatsapp|facebook|instagram|email|import), tags (JSON), consent_status (unknown|opted_in|opted_out), consent_source, consent_at, notes, assigned_to, conversation_id, created_at, updated_at`. La columna `lead_id` en `wp_vitacare_crm_conversations` (ya referenciada defensivamente desde antes de esta fase) se crea de verdad aquí.
+- **Un lead ≠ opt-in de marketing.** `Vitacare_Crm_Conversations_Repo::upsert_contact()` crea (o reutiliza, por teléfono/correo) un lead automáticamente en `consent_status='unknown'` para cualquier contacto nuevo o ya existente sin lead — eso solo registra al contacto, **no** habilita campañas. Marcar `opted_in` es siempre una acción explícita del staff desde `CRM VITACARE → Leads`, vía `Vitacare_Crm_Leads_Repo::set_consent()` (deja rastro de `consent_source`/`consent_at`).
+- **Dedupe por contacto** (`Vitacare_Crm_Leads_Repo::find_by_contact()`): antes de crear un lead nuevo automáticamente, busca uno existente por correo exacto o por los últimos 8 dígitos del teléfono (mismo criterio que el puente D-19) y lo reutiliza — evita duplicados cuando el mismo número/correo ya tenía lead o escribe por dos canales distintos.
+- **Admin `CRM VITACARE → Leads`** (`Vitacare_Crm_Leads`, formularios WP nativos con nonce, mismo patrón que Cuentas/Reportes): alta manual, filtro por fuente/consentimiento/búsqueda, botones opt-in/opt-out por fila, importar CSV (columnas `name,phone,email,tags` — tags separados por `;` dentro de la celda), y **"Convertir a conversación"**: crea el hueco de conversación (WhatsApp si hay teléfono, si no correo vía Zoho) para que el staff pueda abrir el hilo desde `/crm` — no envía nada; WhatsApp igual exige que el contacto escriba primero dentro de la ventana de 24h, eso no cambia.
+- **Deep link a la bandeja**: `assets/js/crm.js` ahora lee `?c=ID` al cargar y abre esa conversación directamente — lo usa el enlace "Ver hilo" de Leads, pero sirve para cualquier enlace externo a una conversación puntual.
+- **Endpoints REST** (`vitacare-crm/v1`, cap `vitacare_crm_access`): `GET/POST /leads`, `GET/PUT /leads/{id}`, `PUT /leads/{id}/consent`, `POST /leads/import` (multipart `file` o JSON `{csv: "..."}"`). Pensados para que las Fases 3-4 (enlaces con seguimiento, campañas de correo) los consuman sin duplicar lógica.
 
 ### 3.3 Estructura de archivos (plugin = raíz del repo)
 
@@ -147,6 +157,8 @@ crmvitacare/
 │   ├── class-vitacare-crm-settings.php
 │   ├── class-vitacare-crm-accounts.php
 │   ├── class-vitacare-crm-reports.php  ← D-23: dashboard de métricas locales (Fase 1, ver 3.2g)
+│   ├── class-vitacare-crm-leads-repo.php  ← D-24: CRUD leads + auto-alta + consentimiento (Fase 2, ver 3.2h)
+│   ├── class-vitacare-crm-leads.php       ← D-24: admin Leads (crear/filtrar/opt-in/import CSV/convertir)
 │   ├── class-vitacare-crm-facebook-oauth.php
 │   ├── class-vitacare-crm-tiktok-oauth.php  ← C-6: Login Kit, solo verifica cuenta (sin DMs, ver 3.2e)
 │   ├── class-vitacare-crm-gmail.php
@@ -180,6 +192,10 @@ crmvitacare/
 | `GET .../media/{message_id}` | PR-6: sirve el adjunto descargado (cap `vitacare_crm_access`) |
 | `POST .../media/upload` | PR-6b: sube un archivo de staff (multipart, cap `vitacare_crm_access`) |
 | `GET .../conversations/{id}/vitacare-contact` | D-19: ficha de solo lectura del contacto en VITACARE si hay match por teléfono/correo (cap `vitacare_crm_access`) |
+| `GET/POST /leads` | D-24: listar (filtros source/consent_status/tag/q) / crear lead manual |
+| `GET/PUT /leads/{id}` | D-24: detalle / actualizar campos editables (no consent_status) |
+| `PUT /leads/{id}/consent` | D-24: marcar opt-in/opt-out con rastro de origen |
+| `POST /leads/import` | D-24: importar CSV (multipart `file` o JSON `{csv}`) |
 | `GET .../ping` | Health (público, sin secretos) |
 
 ### 3.5 Admin WP (capability `manage_options`)
@@ -188,6 +204,7 @@ crmvitacare/
 |---|---|
 | Cuentas conectadas | `vitacare-crm-accounts` |
 | Reportes | `vitacare-crm-reports` |
+| Leads | `vitacare-crm-leads` |
 | WhatsApp (oficial) | `vitacare-crm-whatsapp` |
 | Facebook | `vitacare-crm-facebook` |
 | TikTok | `vitacare-crm-tiktok` |
@@ -216,7 +233,8 @@ crmvitacare/
 | D-20 | Despliegue automático a Hostinger vía GitHub Actions (`.github/workflows/deploy-hostinger.yml`), mismo patrón SSH+rsync que ya usa `vitacare-demo`, mismos 4 secrets (`HOSTINGER_SSH_KEY`/`HOST`/`PORT`/`USER`) pero copiados aparte a los Settings → Secrets propios de este repo (los secrets de GitHub son por-repo). El rsync sincroniza solo `wp-content/plugins/vitacare-crm/`, nunca toca el resto del sitio; excluye `.git`/`.github`/`dist`/`tests`/`bin`/`.idea`/`.vscode`/`.gitignore` (mismo criterio que el ZIP manual de `bin/package-plugin.ps1`). Sin `--delete`, mismo criterio de seguridad que `vitacare-demo`. |
 | D-21 | **C-6 TikTok — hallazgo del spike:** TikTok for Developers no publica ningún producto de API pública para que una app de terceros envíe/reciba DMs o lea/responda comentarios (confirmado contra su documentación oficial, 2026-08: Login Kit, Share Kit, Content Posting API, Display API, Webhooks de contenido, Data Portability, Research API, Business API — ninguno cubre mensajería). Se implementó únicamente Login Kit (OAuth v2 oficial) para conectar/verificar la cuenta; TikTok **no** se agrega como canal de la bandeja ni tiene webhook de mensajes. Si TikTok publica una API de mensajería en el futuro, recién ahí se revisita como canal real. |
 | D-22 | Zoho Mail (`Vitacare_Crm_Zoho`) se agrega bajo el mismo canal `email` que ya usa Gmail, no como canal nuevo — desde la bandeja, "Correo" sigue siendo un solo filtro. **Zoho Mail es el correo institucional de VITACARE y el proveedor principal/por defecto; Gmail queda secundario/opcional** (confirmado por el usuario 2026-08-04). Cada conversación guarda `meta.mail_provider` (`gmail`/`zoho`) al importar cada mensaje entrante, y `post_message()` en el REST controller lee ese valor para responder por el buzón correcto — default `zoho` si el campo no está presente. El flag de canal `vitacare_crm_feature_email` es compartido: el `disconnect()` de cada proveedor solo lo apaga si el otro tampoco está conectado. Zoho tiene varios data centers regionales (com/eu/in/com.au/jp) — el dominio se configura explícitamente en la página del conector, con `com` como default razonable, porque un dominio equivocado rompe la conexión entera. |
-| D-23 | Fase 1 de un plan de 5 fases de métricas/marketing gratuito pedido por el usuario 2026-08-04 (herramientas de marketing/publicidad/métricas respetando políticas de cada plataforma para no arriesgar bloqueo de número/cuentas, todo el sistema gratuito). Esta fase: dashboard de Reportes local (sin tablas nuevas, solo agregados SQL sobre datos ya guardados), salud de WhatsApp vía GET de solo lectura a Graph, y el cupo de envíos salientes pasa de solo-loguear a bloquear de verdad (WhatsApp + nuevo en Messenger/Instagram). **Descartado explícitamente en esta fase por decisión del usuario**: plantillas de marketing de WhatsApp fuera de ventana (cuestan dinero a Meta más allá de la franja gratuita) y *message tags* promocionales de Messenger/Instagram fuera de ventana (Meta ya no los permite). **Fases 2-5 (leads pipeline DB v3, enlaces con seguimiento propio, campañas de correo con opt-in, Insights gratis de Meta) requieren visto bueno explícito del usuario antes de cada una** — no asumir continuación automática. Ver 3.2g. |
+| D-23 | Fase 1 de un plan de 5 fases de métricas/marketing gratuito pedido por el usuario 2026-08-04 (herramientas de marketing/publicidad/métricas respetando políticas de cada plataforma para no arriesgar bloqueo de número/cuentas, todo el sistema gratuito). Esta fase: dashboard de Reportes local (sin tablas nuevas, solo agregados SQL sobre datos ya guardados), salud de WhatsApp vía GET de solo lectura a Graph, y el cupo de envíos salientes pasa de solo-loguear a bloquear de verdad (WhatsApp + nuevo en Messenger/Instagram). **Descartado explícitamente en esta fase por decisión del usuario**: plantillas de marketing de WhatsApp fuera de ventana (cuestan dinero a Meta más allá de la franja gratuita) y *message tags* promocionales de Messenger/Instagram fuera de ventana (Meta ya no los permite). Ver 3.2g. |
+| D-24 | Fase 2 del mismo plan (leads pipeline, DB v3), aprobada por el usuario 2026-08-04 tras entregarse y verificarse la Fase 1. Tabla `wp_vitacare_crm_leads` + columna real `lead_id` en conversations (ya referenciada defensivamente desde antes). Auto-alta de lead en `consent_status='unknown'` para todo contacto nuevo o existente sin lead (con dedupe por teléfono/correo) — **escribir al CRM nunca es opt-in de marketing por sí solo**, eso solo se marca explícitamente en `CRM VITACARE → Leads`. Admin de leads + endpoints REST + deep link `?c=ID` en la bandeja. **Fases 3-5 (enlaces con seguimiento propio, campañas de correo con opt-in, Insights gratis de Meta) siguen requiriendo visto bueno explícito del usuario antes de cada una** — no asumir continuación automática. Ver 3.2h. |
 
 ---
 
@@ -228,9 +246,8 @@ crmvitacare/
 | Media | **Ops** | Si se quiere usar el conector TikTok (C-6): crear una app en TikTok for Developers con producto Login Kit, registrar la redirect URI (`wp-admin/admin.php?page=vitacare-crm-tiktok`) y cargar Client Key/Secret en CRM → Credenciales. Opcional — el conector solo verifica la cuenta, no habilita mensajería (ver D-21). |
 | Alta | **Ops** | Conectar Zoho Mail (D-22) — es el correo institucional y canal principal de correo del CRM: crear una app "Server-based Applications" en la Zoho API Console, registrar la redirect URI (`wp-admin/admin.php?page=vitacare-crm-zoho`), confirmar el data center de la cuenta, y cargar Client ID/Secret en esa misma página. |
 | Media | **D-18** | Decidir si vale la pena exponer media públicamente (con firma/expiración) para habilitar envío de adjuntos por Instagram |
-| Alta | **D-23 Fase 2** | Pipeline de leads (DB v3): tabla `wp_vitacare_crm_leads`, columna real `lead_id` en conversations, auto-creación de lead al primer mensaje, UI Leads, opt-in/opt-out. **Esperando visto bueno del usuario para arrancar** (entrega fase por fase acordada). |
-| Media | **D-23 Fase 3** | Enlaces con seguimiento propio (UTM/clics autohospedado, `GET /crm/go/{code}`). Depende de Fase 2 solo para asociar clics a un lead (opcional). |
-| Media | **D-23 Fase 4** | Campañas de correo (Zoho principal/Gmail secundario) con segmento por `consent_status = 'opted_in'`, límite diario duro, enlace de baja. Depende de Fase 2 (necesita leads con opt-in). |
+| Media | **D-23 Fase 3** | Enlaces con seguimiento propio (UTM/clics autohospedado, `GET /crm/go/{code}`). **Esperando visto bueno del usuario para arrancar** (entrega fase por fase acordada). |
+| Media | **D-23 Fase 4** | Campañas de correo (Zoho principal/Gmail secundario) con segmento por `consent_status = 'opted_in'`, límite diario duro, enlace de baja. Ya tiene su prerequisito real (leads con opt-in, D-24) resuelto. |
 | Baja | **D-23 Fase 5** | Insights gratis de Meta (alcance/impresiones de Página/Instagram) en el dashboard de Reportes. |
 | Baja | Polish | Roles staff, notificaciones, limpieza de adjuntos subidos y nunca enviados |
 | Baja | **D-19 UI** | El match VITACARE por ahora solo se muestra en el panel de contexto de la bandeja; falta decidir si conviene una acción rápida desde ahí (ej. "Ver ficha completa" hacia `panel-administrador`/`panel-rrhh` de vitacare-demo) — no implementado, solo lectura de datos, ver 3.2d |
@@ -255,10 +272,10 @@ Contexto exacto para quien retome (Grok, Claude Code, u otra sesión):
 
 ### Siguiente paso de ingeniería recomendado
 
-1. `git pull` del repo (ya en `main`, v1.7.0).  
+1. `git pull` del repo (ya en `main`, v1.8.0).  
 2. **Despliegue en producción ya resuelto** (ver nota en sección 5) — `/crm` responde en `vitacareec.org`, plugin activo. No hace falta repetir nada de eso.  
 3. Completar Coexistence WA + Facebook Page (y cuenta Instagram vinculada) + Gmail/Zoho Mail en admin, ya en el sitio real — es lo único operativo puro que sigue pendiente.  
-4. **D-23 Fase 1 (Reportes + salud WhatsApp + cupo endurecido) ya está resuelta.** Verificar en producción con datos reales (dashboard con conversaciones existentes, badge de calidad de WhatsApp) y pedir al usuario el visto bueno explícito antes de arrancar **D-23 Fase 2 (Leads pipeline DB v3)** — no adelantar sin esa confirmación, es un acuerdo explícito de la sesión que abrió el plan.  
+4. **D-23 Fase 1 (Reportes + salud WhatsApp + cupo endurecido) y D-24 Fase 2 (Leads DB v3) ya están resueltas.** Verificar en producción con datos reales (dashboard con conversaciones existentes, tabla de leads poblándose sola con contactos nuevos) y pedir al usuario el visto bueno explícito antes de arrancar **D-23 Fase 3 (enlaces con seguimiento propio)** — no adelantar sin esa confirmación, es un acuerdo explícito de la sesión que abrió el plan.  
 5. Código nuevo secundario: decidir/implementar D-18 (media saliente Instagram). **C-6 TikTok y D-22 Zoho Mail ya están resueltos** — no reabrir TikTok salvo que publique una API de DMs; Zoho ya es un proveedor de correo completo (in/out) igual que Gmail.
 
 ---
@@ -299,7 +316,8 @@ cd C:\Users\User\Documents\crmvitacare && git pull origin main
 | 2026-08-04 | **Ops: despliegue verificado en producción** — 4 secrets de Hostinger cargados en este repo, workflow corrido (con un reintento por el mismo error transitorio de `ssh-keyscan` ya conocido de `vitacare-demo`), plugin activado manualmente en WP Admin, `/crm` confirmado respondiendo 302 a login en vez de 404 | (sin commit de código) |
 | 2026-08-04 | **D-22 Zoho Mail v1.6.0** (`Vitacare_Crm_Zoho`, segundo proveedor de correo bajo el mismo canal `email` que Gmail — OAuth v2 oficial, sync entrante cron, envío saliente; `meta.mail_provider` por conversación decide qué buzón responde) | `7567bf9` |
 | 2026-08-04 | **D-22 ajuste v1.6.1**: Zoho Mail pasa a ser el canal principal/por defecto de correo (correo institucional), Gmail queda secundario/opcional — fallback de envío cambiado de `gmail` a `zoho`, orden de tarjetas y textos actualizados | este commit |
-| 2026-08-04 | **D-23 Fase 1 v1.7.0**: dashboard `Vitacare_Crm_Reports` (mensajes por canal, volumen diario, estados, primera respuesta, carga por agente), `Vitacare_Crm_Graph::get()` + `Vitacare_Crm_Channel_Whatsapp::health()` (badge de calidad/límite de mensajería de WhatsApp), cupo de envíos salientes endurecido a bloqueo real en WhatsApp/Messenger/Instagram (antes solo WhatsApp lo tenía y ni bloqueaba) | este commit |
+| 2026-08-04 | **D-23 Fase 1 v1.7.0**: dashboard `Vitacare_Crm_Reports` (mensajes por canal, volumen diario, estados, primera respuesta, carga por agente), `Vitacare_Crm_Graph::get()` + `Vitacare_Crm_Channel_Whatsapp::health()` (badge de calidad/límite de mensajería de WhatsApp), cupo de envíos salientes endurecido a bloqueo real en WhatsApp/Messenger/Instagram (antes solo WhatsApp lo tenía y ni bloqueaba) | `15eb0bb` |
+| 2026-08-04 | **D-24 Fase 2 v1.8.0**: DB v3 (`wp_vitacare_crm_leads` + `lead_id` real en conversations), `Vitacare_Crm_Leads_Repo` (CRUD, opt-in/opt-out, dedupe por contacto, import CSV), auto-alta de lead desde `upsert_contact()`, admin `CRM VITACARE → Leads`, endpoints REST `/leads`, deep link `?c=ID` en la bandeja | este commit |
 
 ---
 

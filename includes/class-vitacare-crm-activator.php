@@ -4,8 +4,8 @@ defined( 'ABSPATH' ) || exit;
 final class Vitacare_Crm_Activator {
 
 	public static function activate(): void {
-		// Instalación limpia = esquema actual (v2).
-		self::install_tables_v2();
+		// Instalación limpia = esquema actual (v3).
+		self::install_tables_v3();
 		self::ensure_capability();
 		self::install_page();
 		update_option( 'vitacare_crm_db_version', VITACARE_CRM_DB_VERSION, false );
@@ -114,6 +114,43 @@ final class Vitacare_Crm_Activator {
 				PRIMARY KEY  (id),
 				KEY conversation_id (conversation_id),
 				UNIQUE KEY external_message_id_unique (external_message_id)
+			) {$charset_collate};"
+		);
+	}
+
+	/**
+	 * Esquema v3 (D-23 Fase 2): tabla de leads.
+	 */
+	public static function install_tables_v3(): void {
+		self::install_tables_v2();
+
+		global $wpdb;
+		$charset_collate = $wpdb->get_charset_collate();
+		$leads           = $wpdb->prefix . 'vitacare_crm_leads';
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		dbDelta(
+			"CREATE TABLE {$leads} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				name VARCHAR(191) NULL,
+				phone VARCHAR(32) NULL,
+				email VARCHAR(191) NULL,
+				source VARCHAR(20) NOT NULL DEFAULT 'manual',
+				tags LONGTEXT NULL,
+				consent_status VARCHAR(20) NOT NULL DEFAULT 'unknown',
+				consent_source VARCHAR(50) NULL,
+				consent_at DATETIME NULL,
+				notes LONGTEXT NULL,
+				assigned_to BIGINT UNSIGNED NULL,
+				conversation_id BIGINT UNSIGNED NULL,
+				created_at DATETIME NOT NULL,
+				updated_at DATETIME NULL,
+				PRIMARY KEY  (id),
+				KEY source (source),
+				KEY consent_status (consent_status),
+				KEY conversation_id (conversation_id),
+				KEY assigned_to (assigned_to)
 			) {$charset_collate};"
 		);
 	}
