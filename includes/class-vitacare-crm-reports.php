@@ -74,6 +74,42 @@ final class Vitacare_Crm_Reports {
 				</div>
 			</div>
 
+			<?php if ( class_exists( 'Vitacare_Crm_Facebook_Oauth' ) ) : ?>
+				<h2><?php echo esc_html__( 'Insights de Meta (gratis, sin gasto en anuncios)', 'vitacare-crm' ); ?></h2>
+				<div class="vcrm-admin-grid">
+					<div class="vcrm-admin-card">
+						<h2><?php echo esc_html__( 'Página de Facebook (últimos 7 días)', 'vitacare-crm' ); ?></h2>
+						<?php
+						$fb_insights = Vitacare_Crm_Facebook_Oauth::is_connected() ? Vitacare_Crm_Facebook_Oauth::get_page_insights() : null;
+						if ( null === $fb_insights ) :
+							?>
+							<p class="description"><?php echo esc_html__( 'Conecta Facebook en CRM VITACARE → Facebook.', 'vitacare-crm' ); ?></p>
+						<?php elseif ( is_wp_error( $fb_insights ) ) : ?>
+							<p class="description"><?php echo esc_html( $fb_insights->get_error_message() ); ?></p>
+							<p class="description"><?php echo esc_html__( 'Si acabas de agregar este permiso, reconecta Facebook (botón «Reconectar / cambiar cuenta») para autorizarlo.', 'vitacare-crm' ); ?></p>
+						<?php else : ?>
+							<p><?php echo esc_html__( 'Impresiones:', 'vitacare-crm' ); ?> <strong><?php echo esc_html( number_format_i18n( (float) ( $fb_insights['page_impressions'] ?? 0 ) ) ); ?></strong></p>
+							<p><?php echo esc_html__( 'Interacciones con publicaciones:', 'vitacare-crm' ); ?> <strong><?php echo esc_html( number_format_i18n( (float) ( $fb_insights['page_post_engagements'] ?? 0 ) ) ); ?></strong></p>
+						<?php endif; ?>
+					</div>
+					<div class="vcrm-admin-card">
+						<h2><?php echo esc_html__( 'Instagram (últimos 7 días)', 'vitacare-crm' ); ?></h2>
+						<?php
+						$ig_insights = Vitacare_Crm_Facebook_Oauth::is_instagram_connected() ? Vitacare_Crm_Facebook_Oauth::get_instagram_insights() : null;
+						if ( null === $ig_insights ) :
+							?>
+							<p class="description"><?php echo esc_html__( 'Vincula una cuenta de Instagram profesional en CRM VITACARE → Facebook.', 'vitacare-crm' ); ?></p>
+						<?php elseif ( is_wp_error( $ig_insights ) ) : ?>
+							<p class="description"><?php echo esc_html( $ig_insights->get_error_message() ); ?></p>
+							<p class="description"><?php echo esc_html__( 'Si acabas de agregar este permiso, reconecta Facebook para autorizarlo.', 'vitacare-crm' ); ?></p>
+						<?php else : ?>
+							<p><?php echo esc_html__( 'Alcance:', 'vitacare-crm' ); ?> <strong><?php echo esc_html( number_format_i18n( (float) ( $ig_insights['reach'] ?? 0 ) ) ); ?></strong></p>
+							<p><?php echo esc_html__( 'Visitas al perfil:', 'vitacare-crm' ); ?> <strong><?php echo esc_html( number_format_i18n( (float) ( $ig_insights['profile_views'] ?? 0 ) ) ); ?></strong></p>
+						<?php endif; ?>
+					</div>
+				</div>
+			<?php endif; ?>
+
 			<h2><?php echo esc_html__( 'Mensajes por canal (últimos 30 días)', 'vitacare-crm' ); ?></h2>
 			<table class="widefat striped" style="max-width:640px">
 				<thead>

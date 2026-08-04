@@ -22,8 +22,12 @@ final class Vitacare_Crm_Facebook_Oauth {
 	/**
 	 * Scopes para listar páginas, mensajería Messenger e Instagram (la cuenta IG
 	 * profesional se administra a través del mismo token de Página).
+	 * D-27 Fase 5: read_insights/instagram_manage_insights agregados para leer
+	 * alcance/impresiones gratis (sin gasto en anuncios) en Reportes. Cuentas ya
+	 * conectadas antes de este cambio deben pulsar «Reconectar / cambiar cuenta»
+	 * para obtener el nuevo permiso -- Meta no lo agrega solo.
 	 */
-	public const SCOPES = 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,business_management,instagram_basic,instagram_manage_messages';
+	public const SCOPES = 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,business_management,instagram_basic,instagram_manage_messages,read_insights,instagram_manage_insights';
 
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'register_menu' ), 25 );
@@ -430,6 +434,118 @@ final class Vitacare_Crm_Facebook_Oauth {
 		update_option( 'vitacare_crm_feature_instagram', '1', false );
 	}
 
+	/**
+	 * D-27 Fase 5: alcance/impresiones de la Página, gratis (sin gasto en
+	 * anuncios, solo lectura de Insights). Cacheado 30 min. Usa métricas
+	 * vigentes (page_impressions_unique fue deprecado por Meta -- no se
+	 * usa aquí).
+	 *
+	 * @return array<string, int>|WP_Error
+	 */
+	public static function get_page_insights() {
+		if ( ! self::is_connected() ) {
+			return new WP_Error( 'vitacare_crm_fb', __( 'Facebook no está conectado.', 'vitacare-crm' ) );
+		}
+		$cached = get_transient( 'vitacare_crm_fb_page_insights' );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		$version = Vitacare_Crm_Settings::graph_version();
+		$url     = add_query_arg(
+			array(
+				'metric'       => 'page_impressions,page_post_engagements',
+				'period'       => 'day',
+				'since'        => gmdate( 'Y-m-d', strtotime( '-7 days' ) ),
+				'until'        => gmdate( 'Y-m-d' ),
+				'access_token' => self::get_page_token(),
+			),
+			'https://graph.facebook.com/' . rawurlencode( $version ) . '/' . rawurlencode( self::get_page_id() ) . '/insights'
+		);
+		$response = wp_remote_get( $url, array( 'timeout' => 20, 'headers' => array( 'User-Agent' => 'VITACARE-CRM/' . VITACARE_CRM_VERSION ) ) );
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) || isset( $body['error'] ) ) {
+			$msg = is_array( $body ) && isset( $body['error']['message'] )
+				? (string) $body['error']['message']
+				: __( 'No se pudieron leer los Insights de la Página.', 'vitacare-crm' );
+			return new WP_Error( 'vitacare_crm_fb_insights', $msg );
+		}
+
+		$result = self::sum_insight_values( is_array( $body['data'] ?? null ) ? $body['data'] : array() );
+		set_transient( 'vitacare_crm_fb_page_insights', $result, 30 * MINUTE_IN_SECONDS );
+		return $result;
+	}
+
+	/**
+	 * D-27 Fase 5: alcance y visitas de perfil de la cuenta de Instagram
+	 * profesional vinculada, gratis. Cacheado 30 min.
+	 *
+	 * @return array<string, int>|WP_Error
+	 */
+	public static function get_instagram_insights() {
+		if ( ! self::is_instagram_connected() ) {
+			return new WP_Error( 'vitacare_crm_fb', __( 'Instagram no está vinculado.', 'vitacare-crm' ) );
+		}
+		$cached = get_transient( 'vitacare_crm_ig_insights' );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		$version = Vitacare_Crm_Settings::graph_version();
+		$url     = add_query_arg(
+			array(
+				'metric'       => 'reach,profile_views',
+				'period'       => 'day',
+				'since'        => gmdate( 'Y-m-d', strtotime( '-7 days' ) ),
+				'until'        => gmdate( 'Y-m-d' ),
+				'access_token' => self::get_page_token(),
+			),
+			'https://graph.facebook.com/' . rawurlencode( $version ) . '/' . rawurlencode( self::get_ig_id() ) . '/insights'
+		);
+		$response = wp_remote_get( $url, array( 'timeout' => 20, 'headers' => array( 'User-Agent' => 'VITACARE-CRM/' . VITACARE_CRM_VERSION ) ) );
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) || isset( $body['error'] ) ) {
+			$msg = is_array( $body ) && isset( $body['error']['message'] )
+				? (string) $body['error']['message']
+				: __( 'No se pudieron leer los Insights de Instagram.', 'vitacare-crm' );
+			return new WP_Error( 'vitacare_crm_ig_insights', $msg );
+		}
+
+		$result = self::sum_insight_values( is_array( $body['data'] ?? null ) ? $body['data'] : array() );
+		set_transient( 'vitacare_crm_ig_insights', $result, 30 * MINUTE_IN_SECONDS );
+		return $result;
+	}
+
+	/**
+	 * Suma los valores diarios de cada métrica devuelta por /insights.
+	 *
+	 * @param array<int, mixed> $data
+	 * @return array<string, int>
+	 */
+	private static function sum_insight_values( array $data ): array {
+		$out = array();
+		foreach ( $data as $metric ) {
+			if ( ! is_array( $metric ) || empty( $metric['name'] ) ) {
+				continue;
+			}
+			$name = (string) $metric['name'];
+			$sum  = 0;
+			foreach ( (array) ( $metric['values'] ?? array() ) as $v ) {
+				if ( is_array( $v ) && isset( $v['value'] ) && is_numeric( $v['value'] ) ) {
+					$sum += (int) $v['value'];
+				}
+			}
+			$out[ $name ] = $sum;
+		}
+		return $out;
+	}
+
 	public static function disconnect(): void {
 		delete_option( self::OPTION_PAGE_ID );
 		delete_option( self::OPTION_PAGE_NAME );
@@ -441,6 +557,8 @@ final class Vitacare_Crm_Facebook_Oauth {
 		delete_option( self::OPTION_IG_USERNAME );
 		update_option( 'vitacare_crm_feature_facebook', '', false );
 		update_option( 'vitacare_crm_feature_instagram', '', false );
+		delete_transient( 'vitacare_crm_fb_page_insights' );
+		delete_transient( 'vitacare_crm_ig_insights' );
 	}
 
 	public static function render_page(): void {
