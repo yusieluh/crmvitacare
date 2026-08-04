@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.4.0** |
+| **Versión** | **1.5.0** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,7 +21,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.4.0
+## Qué incluye v1.5.0
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API), incluida media
@@ -31,7 +31,8 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Media (imagen/audio/video/documento): se recibe y se puede **adjuntar al responder** por WhatsApp/Messenger (botón 📎 en la bandeja)
 - **Ficha de VITACARE en la bandeja**: al abrir una conversación, si el contacto coincide (por teléfono o correo) con un usuario real de vitacareec.org, se muestra su nombre, rol, membresía, citas recientes y pendiente de pago — todo de **solo lectura**, sin tocar el sistema principal
 - **Despliegue automático a Hostinger** vía GitHub Actions en cada push a `main` (requiere configurar los secrets del repo, ver `docs/CONTINUAR.md`)
-- Admin: Cuentas, WhatsApp Coexistence, Facebook (+ estado Instagram), Gmail, Credenciales
+- **TikTok (Login Kit)**: conecta y verifica una cuenta de TikTok. No es un canal de mensajes — TikTok no tiene API pública de DMs para apps de terceros, así que no envía/recibe nada en la bandeja (ver `ESTADO_CRM.md`, decisión D-21)
+- Admin: Cuentas, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Credenciales
 
 ## Instalación
 
@@ -76,4 +77,4 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 
 ## Siguiente trabajo
 
-Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (cargar secrets de Hostinger en este repo, C-6 TikTok, media saliente por Instagram).
+Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (cargar secrets de Hostinger en este repo, media saliente por Instagram).

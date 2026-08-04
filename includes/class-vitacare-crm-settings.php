@@ -42,6 +42,16 @@ final class Vitacare_Crm_Settings {
 			'option' => 'vitacare_crm_meta_app_id',
 			'secret' => false,
 		),
+		'tiktok_client_key'    => array(
+			'const'  => 'VITACARE_CRM_TIKTOK_CLIENT_KEY',
+			'option' => 'vitacare_crm_tiktok_client_key',
+			'secret' => false,
+		),
+		'tiktok_client_secret' => array(
+			'const'  => 'VITACARE_CRM_TIKTOK_CLIENT_SECRET',
+			'option' => 'vitacare_crm_tiktok_client_secret',
+			'secret' => true,
+		),
 	);
 
 	public static function init(): void {
@@ -150,6 +160,7 @@ final class Vitacare_Crm_Settings {
 			'vitacare_crm_feature_instagram',
 			'vitacare_crm_feature_email',
 			'vitacare_crm_debug_log',
+			'vitacare_crm_tiktok_client_key',
 		);
 		foreach ( $plain as $opt ) {
 			register_setting(
@@ -165,7 +176,7 @@ final class Vitacare_Crm_Settings {
 		}
 
 		// Secretos: sanitizan y no se vacían si el campo del form llega vacío (mantener valor).
-		foreach ( array( 'vitacare_crm_meta_app_secret', 'vitacare_crm_meta_access_token', 'vitacare_crm_meta_verify_token' ) as $opt ) {
+		foreach ( array( 'vitacare_crm_meta_app_secret', 'vitacare_crm_meta_access_token', 'vitacare_crm_meta_verify_token', 'vitacare_crm_tiktok_client_secret' ) as $opt ) {
 			register_setting(
 				'vitacare_crm_settings',
 				$opt,
@@ -273,6 +284,14 @@ final class Vitacare_Crm_Settings {
 					</tr>
 				</table>
 
+				<h2><?php echo esc_html__( 'TikTok (Login Kit — solo verificación de cuenta, sin mensajería)', 'vitacare-crm' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<?php
+					self::field_text( 'tiktok_client_key', __( 'Client Key', 'vitacare-crm' ), false );
+					self::field_secret( 'tiktok_client_secret', __( 'Client Secret', 'vitacare-crm' ) );
+					?>
+				</table>
+
 				<h2><?php echo esc_html__( 'Canales (feature flags)', 'vitacare-crm' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<?php
@@ -342,9 +361,10 @@ final class Vitacare_Crm_Settings {
 
 		// Campos no secretos (solo si no hay constant).
 		$map_plain = array(
-			'app_id'          => 'vitacare_crm_meta_app_id',
-			'phone_number_id' => 'vitacare_crm_wa_phone_number_id',
-			'waba_id'         => 'vitacare_crm_wa_waba_id',
+			'app_id'            => 'vitacare_crm_meta_app_id',
+			'phone_number_id'   => 'vitacare_crm_wa_phone_number_id',
+			'waba_id'           => 'vitacare_crm_wa_waba_id',
+			'tiktok_client_key' => 'vitacare_crm_tiktok_client_key',
 		);
 		foreach ( $map_plain as $key => $opt ) {
 			if ( self::is_from_constant( $key ) ) {
@@ -357,9 +377,10 @@ final class Vitacare_Crm_Settings {
 
 		// Secretos: solo actualizar si el campo trae valor nuevo y no hay constant.
 		$map_secret = array(
-			'app_secret'   => 'vitacare_crm_meta_app_secret',
-			'access_token' => 'vitacare_crm_meta_access_token',
-			'verify_token' => 'vitacare_crm_meta_verify_token',
+			'app_secret'           => 'vitacare_crm_meta_app_secret',
+			'access_token'         => 'vitacare_crm_meta_access_token',
+			'verify_token'         => 'vitacare_crm_meta_verify_token',
+			'tiktok_client_secret' => 'vitacare_crm_tiktok_client_secret',
 		);
 		foreach ( $map_secret as $key => $opt ) {
 			if ( self::is_from_constant( $key ) ) {

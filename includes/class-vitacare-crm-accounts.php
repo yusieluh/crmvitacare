@@ -117,15 +117,7 @@ final class Vitacare_Crm_Accounts {
 			'facebook'  => self::facebook_card_status(),
 			'instagram' => self::instagram_card_status(),
 			'gmail'     => self::gmail_card_status(),
-			'tiktok'    => array(
-				'name'         => 'TikTok',
-				'level'        => 'off',
-				'label'        => __( 'Pendiente', 'vitacare-crm' ),
-				'detail'       => __( 'OAuth oficial · DMs solo si hay API (C-6).', 'vitacare-crm' ),
-				'action_url'   => '',
-				'action_label' => '',
-				'flag'         => false,
-			),
+			'tiktok'    => self::tiktok_card_status(),
 		);
 	}
 
@@ -157,6 +149,44 @@ final class Vitacare_Crm_Accounts {
 			'action_url'   => admin_url( 'admin.php?page=vitacare-crm-gmail' ),
 			'action_label' => __( 'Conectar Gmail', 'vitacare-crm' ),
 			'flag'         => Vitacare_Crm_Settings::flag( 'email' ),
+		);
+	}
+
+	/**
+	 * C-6: TikTok Login Kit conecta y verifica la cuenta, pero no hay API
+	 * pública de DMs/comentarios de terceros -- por eso nunca llega a
+	 * "canal de mensajería" como los demás, solo a "cuenta verificada".
+	 *
+	 * @return array<string, mixed>
+	 */
+	private static function tiktok_card_status(): array {
+		$connected = class_exists( 'Vitacare_Crm_Tiktok_Oauth' ) && Vitacare_Crm_Tiktok_Oauth::is_connected();
+		if ( $connected ) {
+			$name = Vitacare_Crm_Tiktok_Oauth::get_display_name();
+			return array(
+				'name'         => 'TikTok',
+				'level'        => 'ok',
+				'label'        => __( 'Cuenta verificada', 'vitacare-crm' ),
+				'detail'       => ( $name !== ''
+					? sprintf(
+						/* translators: %s: tiktok display name */
+						__( 'Cuenta: %s · sin canal de mensajes (TikTok no tiene API pública de DMs)', 'vitacare-crm' ),
+						$name
+					)
+					: __( 'Cuenta conectada · sin canal de mensajes (TikTok no tiene API pública de DMs)', 'vitacare-crm' ) ),
+				'action_url'   => admin_url( 'admin.php?page=vitacare-crm-tiktok' ),
+				'action_label' => __( 'Administrar TikTok', 'vitacare-crm' ),
+				'flag'         => true,
+			);
+		}
+		return array(
+			'name'         => 'TikTok',
+			'level'        => 'off',
+			'label'        => __( 'Pendiente', 'vitacare-crm' ),
+			'detail'       => __( 'Login Kit oficial · solo verifica cuenta, sin DMs (limitación de la API pública de TikTok).', 'vitacare-crm' ),
+			'action_url'   => admin_url( 'admin.php?page=vitacare-crm-tiktok' ),
+			'action_label' => __( 'Conectar TikTok', 'vitacare-crm' ),
+			'flag'         => false,
 		);
 	}
 
