@@ -165,7 +165,87 @@ final class Vitacare_Crm_Rest {
 			)
 		);
 
+		register_rest_route(
+			'vitacare-crm/v1',
+			'/links',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'list_links' ),
+					'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( __CLASS__, 'create_link' ),
+					'permission_callback' => array( 'Vitacare_Crm_Db', 'require_crm_access' ),
+				),
+			)
+		);
+
+		// D-25 Fase 3: redirector público de enlaces con seguimiento propio.
+		// Sin auth a propósito -- es el enlace que reciben los contactos
+		// (WhatsApp/correo/redes); el destino nunca viene del request, solo
+		// de lo que el staff guardó al crear el código (ver Links_Repo).
+		register_rest_route(
+			'vitacare-crm/v1',
+			'/go/(?P<code>[A-Za-z0-9]+)',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'go' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
 		Vitacare_Crm_Webhook::register_routes();
+	}
+
+	/**
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function list_links( WP_REST_Request $request ) {
+		return new WP_REST_Response( Vitacare_Crm_Links_Repo::list_all( 100 ), 200 );
+	}
+
+	/**
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function create_link( WP_REST_Request $request ) {
+		$body = $request->get_json_params();
+		if ( ! is_array( $body ) ) {
+			$body = $request->get_body_params();
+		}
+		if ( ! is_array( $body ) || empty( $body['target_url'] ) ) {
+			return Vitacare_Crm_Db::error( 'vitacare_crm_invalid_param', __( 'Falta target_url.', 'vitacare-crm' ), 400 );
+		}
+		$result = Vitacare_Crm_Links_Repo::create(
+			(string) $body['target_url'],
+			isset( $body['campaign_tag'] ) ? (string) $body['campaign_tag'] : '',
+			isset( $body['lead_id'] ) ? (int) $body['lead_id'] : 0
+		);
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return new WP_REST_Response( $result, 201 );
+	}
+
+	/**
+	 * Redirige al destino guardado y cuenta el clic. 404 "silencioso" (sin
+	 * filtrar si el código existió alguna vez) si no hay match.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|void
+	 */
+	public static function go( WP_REST_Request $request ) {
+		$code   = (string) $request['code'];
+		$target = Vitacare_Crm_Links_Repo::register_click( $code );
+		if ( null === $target ) {
+			return new WP_REST_Response( array( 'error' => 'not_found' ), 404 );
+		}
+		nocache_headers();
+		wp_redirect( $target, 302 ); // phpcs:ignore WordPress.Security.SafeRedirect -- destino es un valor de admin (ver Links_Repo), no del request público.
+		exit;
 	}
 
 	/**

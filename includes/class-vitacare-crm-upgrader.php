@@ -37,6 +37,12 @@ final class Vitacare_Crm_Upgrader {
 			update_option( 'vitacare_crm_db_version', '3', false );
 			$current = '3';
 		}
+
+		if ( version_compare( $current, '4', '<' ) && version_compare( $target, '4', '>=' ) ) {
+			self::upgrade_to_4();
+			update_option( 'vitacare_crm_db_version', '4', false );
+			$current = '4';
+		}
 	}
 
 	/**
@@ -87,6 +93,13 @@ final class Vitacare_Crm_Upgrader {
 		$conversations = $wpdb->prefix . 'vitacare_crm_conversations';
 		self::add_column_if_missing( $conversations, 'lead_id', 'BIGINT UNSIGNED NULL' );
 		self::add_index_if_missing( $conversations, 'lead_id', 'lead_id' );
+	}
+
+	/**
+	 * DB v4 (D-25 Fase 3): tabla de enlaces con seguimiento propio.
+	 */
+	public static function upgrade_to_4(): void {
+		Vitacare_Crm_Activator::install_tables_v4();
 	}
 
 	public static function ensure_caps(): void {

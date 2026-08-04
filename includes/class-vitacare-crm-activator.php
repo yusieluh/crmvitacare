@@ -4,8 +4,8 @@ defined( 'ABSPATH' ) || exit;
 final class Vitacare_Crm_Activator {
 
 	public static function activate(): void {
-		// Instalación limpia = esquema actual (v3).
-		self::install_tables_v3();
+		// Instalación limpia = esquema actual (v4).
+		self::install_tables_v4();
 		self::ensure_capability();
 		self::install_page();
 		update_option( 'vitacare_crm_db_version', VITACARE_CRM_DB_VERSION, false );
@@ -151,6 +151,36 @@ final class Vitacare_Crm_Activator {
 				KEY consent_status (consent_status),
 				KEY conversation_id (conversation_id),
 				KEY assigned_to (assigned_to)
+			) {$charset_collate};"
+		);
+	}
+
+	/**
+	 * Esquema v4 (D-25 Fase 3): enlaces con seguimiento propio (UTM/clics).
+	 */
+	public static function install_tables_v4(): void {
+		self::install_tables_v3();
+
+		global $wpdb;
+		$charset_collate = $wpdb->get_charset_collate();
+		$link_clicks     = $wpdb->prefix . 'vitacare_crm_link_clicks';
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		dbDelta(
+			"CREATE TABLE {$link_clicks} (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				code VARCHAR(20) NOT NULL,
+				target_url TEXT NOT NULL,
+				campaign_tag VARCHAR(100) NULL,
+				lead_id BIGINT UNSIGNED NULL,
+				clicks_count INT UNSIGNED NOT NULL DEFAULT 0,
+				created_at DATETIME NOT NULL,
+				last_click_at DATETIME NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY code_unique (code),
+				KEY campaign_tag (campaign_tag),
+				KEY lead_id (lead_id)
 			) {$charset_collate};"
 		);
 	}

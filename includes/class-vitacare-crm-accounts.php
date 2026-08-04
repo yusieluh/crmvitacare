@@ -382,6 +382,7 @@ final class Vitacare_Crm_Accounts {
 				<a class="button" href="<?php echo esc_url( home_url( '/' . VITACARE_CRM_PAGE_SLUG . '/' ) ); ?>"><?php echo esc_html__( 'Abrir bandeja /crm', 'vitacare-crm' ); ?></a>
 				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-reports' ) ); ?>"><?php echo esc_html__( 'Reportes', 'vitacare-crm' ); ?></a>
 				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-leads' ) ); ?>"><?php echo esc_html__( 'Leads', 'vitacare-crm' ); ?></a>
+				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-links' ) ); ?>"><?php echo esc_html__( 'Enlaces', 'vitacare-crm' ); ?></a>
 				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings' ) ); ?>"><?php echo esc_html__( 'Credenciales', 'vitacare-crm' ); ?></a>
 			</p>
 

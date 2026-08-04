@@ -29,7 +29,7 @@ Luego:
 
 1. Abrir y leer **`ESTADO_CRM.md`** (completo).  
 2. Leer este archivo.  
-3. **No** rehacer PR-0…PR-6b, C-1, C-2, C-3, C-4, C-5, C-6, C-7, D-19 (puente VITACARE), D-20 (despliegue automático), D-22 (Zoho Mail), D-23 Fase 1 (Reportes/salud WhatsApp/cupo endurecido) ni D-24 Fase 2 (Leads pipeline DB v3) — ya están en `main` v1.8.0. **C-6 TikTok en particular: no reabrir para "agregar mensajería"** — el spike ya confirmó que TikTok no tiene API pública de DMs (ver D-21 en ESTADO_CRM.md), solo el conector de verificación de cuenta. **El despliegue en producción ya está resuelto** (plugin activo, `/crm` responde) — no volver a pedirle SSH/SFTP al usuario. **Zoho Mail es el correo institucional/canal principal de correo; Gmail es secundario/opcional** — no revertir ese orden sin que el usuario lo pida de nuevo. **D-23 Fase 3 (enlaces con seguimiento propio) y siguientes NO se arrancan sin visto bueno explícito del usuario** — el plan de 5 fases se acordó a entregarse una por una, con confirmación entre cada una.  
+3. **No** rehacer PR-0…PR-6b, C-1, C-2, C-3, C-4, C-5, C-6, C-7, D-19 (puente VITACARE), D-20 (despliegue automático), D-22 (Zoho Mail), D-23 Fase 1 (Reportes/salud WhatsApp/cupo endurecido), D-24 Fase 2 (Leads pipeline DB v3) ni D-25 Fase 3 (Enlaces con seguimiento propio DB v4) — ya están en `main` v1.9.0. **C-6 TikTok en particular: no reabrir para "agregar mensajería"** — el spike ya confirmó que TikTok no tiene API pública de DMs (ver D-21 en ESTADO_CRM.md), solo el conector de verificación de cuenta. **El despliegue en producción ya está resuelto** (plugin activo, `/crm` responde) — no volver a pedirle SSH/SFTP al usuario. **Zoho Mail es el correo institucional/canal principal de correo; Gmail es secundario/opcional** — no revertir ese orden sin que el usuario lo pida de nuevo. **D-23 Fase 4 (campañas de correo con opt-in) y Fase 5 NO se arrancan sin visto bueno explícito del usuario** — el plan de 5 fases se acordó a entregarse una por una, con confirmación entre cada una.  
 4. Elegir trabajo de la sección “Pendiente” de ESTADO.
 
 ---
@@ -63,10 +63,11 @@ Luego:
 - **Zoho Mail (D-22):** `Vitacare_Crm_Zoho`, OAuth v2 oficial (`vitacare-crm-zoho` en el admin) — **correo institucional y canal principal de correo**, bajo el mismo `channel = 'email'` que Gmail (no uno nuevo). Gmail queda como proveedor secundario/opcional. Sync entrante cron y envío desde la bandeja igual que Gmail; cada conversación recuerda en `meta.mail_provider` qué buzón la maneja (default `zoho` si no está marcado explícitamente `gmail`).
 - **D-23 Fase 1 (métricas/marketing gratuito):** `Vitacare_Crm_Reports` (`vitacare-crm-reports` en el admin) — mensajes por canal, volumen diario, estados de conversación, tiempo de primera respuesta, carga por agente, todo sobre datos ya guardados (sin tablas nuevas). `Vitacare_Crm_Graph::get()` + `Vitacare_Crm_Channel_Whatsapp::health()` traen `quality_rating`/límite de mensajería de WhatsApp (badge en Cuentas conectadas + Reportes). El cupo mensual de envíos salientes (Credenciales) ahora **bloquea de verdad** al superarse, en WhatsApp/Messenger/Instagram (antes solo WhatsApp lo tenía y solo registraba un log).
 - **D-24 Fase 2 (Leads pipeline, DB v3):** `Vitacare_Crm_Leads_Repo` + admin `vitacare-crm-leads`. Tabla `wp_vitacare_crm_leads` + columna real `lead_id` en conversations. Auto-alta de lead (`consent_status='unknown'`, con dedupe por teléfono/correo) en cada contacto nuevo o existente sin lead vía `upsert_contact()` — **escribir al CRM no es opt-in de marketing**, eso se marca aparte con los botones opt-in/opt-out. Admin permite alta manual, filtros, import CSV y "Convertir a conversación" (crea el hueco de conversación WhatsApp/email para que el staff abra el hilo desde `/crm`, sin enviar nada). Endpoints REST `/leads` listos para que Fases 3-4 los reutilicen.
-- Admin: Cuentas, Reportes, Leads, WA Coexistence checklist, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
-- DB upgrader a v3, logger en uploads protegido
+- **D-25 Fase 3 (Enlaces con seguimiento propio, DB v4):** `Vitacare_Crm_Links_Repo` + admin `vitacare-crm-links`. Tabla `wp_vitacare_crm_link_clicks`. Genera códigos cortos únicos con UTM incrustado (`utm_source=vitacare-crm&utm_medium=crm&utm_campaign={tag}`), redirector público **`GET /wp-json/vitacare-crm/v1/go/{code}`** (no una URL bonita `/crm/go/{code}` — decisión deliberada, ver D-25/3.2i en ESTADO_CRM.md: se prefirió el namespace REST con fallback `?rest_route=` automático sobre un rewrite rule custom sin ese fallback). Reportes suma "Clics por campaña". Endpoints REST `/links` para que la Fase 4 (campañas de correo) inserte enlaces trackeados en el cuerpo del correo.
+- Admin: Cuentas, Reportes, Leads, Enlaces, WA Coexistence checklist, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
+- DB upgrader a v4, logger en uploads protegido
 
-Versión plugin: **1.8.0** en `vitacare-crm.php`.
+Versión plugin: **1.9.0** en `vitacare-crm.php`.
 
 ---
 
@@ -76,8 +77,8 @@ Versión plugin: **1.8.0** en `vitacare-crm.php`.
 |---|---|
 | **Ops** | Conectar Facebook (Página + Instagram vinculado) y Gmail/Zoho Mail desde el admin, ya en el sitio real (plugin activo, deploy resuelto). |
 | **Ops** | Opcional: crear apps de desarrollador en TikTok for Developers y/o Zoho API Console si se quieren usar esos conectores (ver ESTADO_CRM.md sección 5). |
-| **D-23 Fase 3** | Enlaces con seguimiento propio (UTM/clics autohospedado) — **esperando visto bueno explícito del usuario para arrancar** (plan de 5 fases acordado fase por fase). |
-| **D-23 Fase 4-5** | Campañas de correo con opt-in (ya tiene su prerequisito de leads resuelto, D-24), Insights gratis de Meta — mismo criterio: no arrancar sin pedir turno. |
+| **D-23 Fase 4** | Campañas de correo con opt-in (Zoho principal/Gmail secundario) — **esperando visto bueno explícito del usuario para arrancar** (plan de 5 fases acordado fase por fase). Ya tiene sus dos prerequisitos resueltos: leads con opt-in (D-24) y enlaces con seguimiento (D-25). |
+| **D-23 Fase 5** | Insights gratis de Meta (alcance/impresiones) — mismo criterio: no arrancar sin pedir turno. |
 | **D-18** | Media saliente por Instagram: decidir si se expone media con URL firmada/expirable (Send API de IG la exige) |
 
 ---

@@ -122,6 +122,33 @@ final class Vitacare_Crm_Reports {
 				</div>
 			</div>
 
+			<?php if ( class_exists( 'Vitacare_Crm_Links_Repo' ) ) : ?>
+				<?php $campaigns = Vitacare_Crm_Links_Repo::clicks_by_campaign(); ?>
+				<h2><?php echo esc_html__( 'Clics por campaña (enlaces con seguimiento propio)', 'vitacare-crm' ); ?></h2>
+				<table class="widefat striped" style="max-width:640px">
+					<thead>
+						<tr>
+							<th><?php echo esc_html__( 'Campaña', 'vitacare-crm' ); ?></th>
+							<th><?php echo esc_html__( 'Enlaces', 'vitacare-crm' ); ?></th>
+							<th><?php echo esc_html__( 'Clics', 'vitacare-crm' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php if ( empty( $campaigns ) ) : ?>
+							<tr><td colspan="3"><?php echo esc_html__( 'Sin enlaces todavía. Genera uno en CRM VITACARE → Enlaces.', 'vitacare-crm' ); ?></td></tr>
+						<?php else : ?>
+							<?php foreach ( $campaigns as $c ) : ?>
+								<tr>
+									<td><?php echo esc_html( $c['campaign_tag'] ); ?></td>
+									<td><?php echo esc_html( (string) $c['links'] ); ?></td>
+									<td><strong><?php echo esc_html( (string) $c['clicks'] ); ?></strong></td>
+								</tr>
+							<?php endforeach; ?>
+						<?php endif; ?>
+					</tbody>
+				</table>
+			<?php endif; ?>
+
 			<h2><?php echo esc_html__( 'Carga por agente (conversaciones asignadas)', 'vitacare-crm' ); ?></h2>
 			<table class="widefat striped" style="max-width:640px">
 				<thead>
