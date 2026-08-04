@@ -11,10 +11,10 @@
 | **Clone local típico** | `C:\Users\User\Documents\crmvitacare` |
 | **Sitio (raíz — NO TOCAR)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Plugin** | `vitacare-crm` **v1.11.0** |
-| **DB schema** | **v5** (`vitacare_crm_db_version`) — D-27 no agrega tablas (solo Graph API de solo lectura); D-26 agregó `wp_vitacare_crm_email_campaigns` + `wp_vitacare_crm_campaign_recipients`; D-25 agregó `wp_vitacare_crm_link_clicks`; D-24 agregó `wp_vitacare_crm_leads` + columna `lead_id` en conversations; sin cambios de esquema en C-3/PR-6/PR-6b/D-19/D-20/C-6/D-22/D-23 |
+| **Plugin** | `vitacare-crm` **v1.11.1** |
+| **DB schema** | **v5** (`vitacare_crm_db_version`) — sin cambios de esquema desde D-27; D-26 agregó `wp_vitacare_crm_email_campaigns` + `wp_vitacare_crm_campaign_recipients`; D-25 agregó `wp_vitacare_crm_link_clicks`; D-24 agregó `wp_vitacare_crm_leads` + columna `lead_id` en conversations; sin cambios de esquema en C-3/PR-6/PR-6b/D-19/D-20/C-6/D-22/D-23 |
 | **Última actualización docs** | 2026-08-04 |
-| **Último commit de referencia** | D-27 Fase 5 (última) de métricas/marketing gratuito: Insights gratis de Meta (alcance/impresiones de Página e Instagram) en Reportes — **plan de 5 fases completo** (este commit) |
+| **Último commit de referencia** | Fix v1.11.1: panel de contexto de la bandeja (ficha de contacto) más ancho, menos comprimido — solo CSS, sin cambios de esquema ni de fase (este commit) |
 
 ---
 
@@ -362,6 +362,7 @@ cd C:\Users\User\Documents\crmvitacare && git pull origin main
 | 2026-08-04 | **D-25 Fase 3 v1.9.0**: DB v4 (`wp_vitacare_crm_link_clicks`), `Vitacare_Crm_Links_Repo` (códigos únicos + UTM incrustado + contador de clics), redirector público `GET /go/{code}`, admin `CRM VITACARE → Enlaces`, sección "Clics por campaña" en Reportes, endpoints REST `/links` | `c1fcb2e` |
 | 2026-08-04 | **D-26 Fase 4 v1.10.0**: DB v5 (`wp_vitacare_crm_email_campaigns` + `wp_vitacare_crm_campaign_recipients`), `Vitacare_Crm_Email_Campaigns_Repo` (segmento congelado por opt-in, despacho por cron en lotes con re-verificación de consentimiento, `daily_cap` por campaña), `send_campaign_email()` en Zoho/Gmail, baja pública `GET/POST /unsubscribe/{token}` con token HMAC sin estado, admin `CRM VITACARE → Campañas de correo`, resumen en Reportes | `4a18ff0` |
 | 2026-08-04 | **D-27 Fase 5 (última) v1.11.0**: scopes `read_insights`/`instagram_manage_insights`, `get_page_insights()`/`get_instagram_insights()` en `Vitacare_Crm_Facebook_Oauth` (impresiones/interacciones de Página, alcance/visitas de perfil de Instagram, cacheados 30 min), sección "Insights de Meta" en Reportes — **cierra el plan de 5 fases de métricas/marketing gratuito** | este commit |
+| 2026-08-04 | **Fix v1.11.1** (fuera del plan de 5 fases, pedido directo del usuario): panel de contexto de la bandeja (ficha "Contacto en VITACARE") más ancho — `.vcrm-container` de 1280px a 1520px, tercera columna del grid de `minmax(200px,240px)` a `minmax(280px,360px)`, `word-break: break-all` cambiado a `overflow-wrap: break-word` en `.vcrm-dl dd` para no cortar texto de forma agresiva. Solo CSS, sin cambios de esquema | `e978b7f` |
 
 ---
 
