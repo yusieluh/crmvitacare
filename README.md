@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.6.1** |
+| **Versión** | **1.7.0** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,7 +21,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.6.1
+## Qué incluye v1.7.0
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API), incluida media
@@ -33,7 +33,8 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - **Despliegue automático a Hostinger** vía GitHub Actions en cada push a `main` (requiere configurar los secrets del repo, ver `docs/CONTINUAR.md`)
 - **TikTok (Login Kit)**: conecta y verifica una cuenta de TikTok. No es un canal de mensajes — TikTok no tiene API pública de DMs para apps de terceros, así que no envía/recibe nada en la bandeja (ver `ESTADO_CRM.md`, decisión D-21)
 - **Zoho Mail**: correo institucional y **canal principal de correo** (mismo canal "Correo" que Gmail, que queda secundario/opcional) — cada conversación recuerda qué buzón la maneja para responder por el correcto (ver `ESTADO_CRM.md`, decisión D-22)
-- Admin: Cuentas, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
+- **Reportes** (Fase 1 de métricas/marketing gratuito, D-23): mensajes por canal, volumen diario, conversaciones por estado, tiempo de primera respuesta, carga por agente — todo sobre datos ya guardados en el CRM. Badge de salud de WhatsApp (calidad + límite de mensajería, vía Graph API). El cupo mensual de mensajes salientes ahora **bloquea de verdad** el envío al superarse (antes solo avisaba), aplicado a WhatsApp, Messenger e Instagram
+- Admin: Cuentas, Reportes, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
 
 ## Instalación
 
@@ -56,6 +57,7 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 | Menú | Uso |
 |---|---|
 | CRM VITACARE → Cuentas conectadas | Estado de canales |
+| Reportes | Métricas locales + salud de WhatsApp |
 | WhatsApp (oficial) | Checklist Coexistence |
 | Facebook | Conectar + elegir Página |
 | TikTok | Conectar (solo verifica cuenta, sin mensajería) |
@@ -82,4 +84,4 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 
 ## Siguiente trabajo
 
-Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (conectar Facebook/Instagram/Gmail/Zoho en el sitio real, media saliente por Instagram).
+Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (conectar Facebook/Instagram/Gmail/Zoho en el sitio real, media saliente por Instagram, y Fases 2-5 del plan de métricas/marketing gratuito — pipeline de leads, enlaces con seguimiento, campañas de correo, Insights de Meta — cada una requiere visto bueno explícito del usuario antes de arrancar).

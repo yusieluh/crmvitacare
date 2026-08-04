@@ -273,6 +273,11 @@ final class Vitacare_Crm_Channel_Instagram {
 			);
 		}
 
+		$quota_error = self::check_outbound_quota();
+		if ( null !== $quota_error ) {
+			return $quota_error;
+		}
+
 		$ig_id      = Vitacare_Crm_Facebook_Oauth::get_ig_id();
 		$page_token = Vitacare_Crm_Facebook_Oauth::get_page_token();
 		$version    = Vitacare_Crm_Settings::graph_version();
@@ -323,6 +328,8 @@ final class Vitacare_Crm_Channel_Instagram {
 			return Vitacare_Crm_Db::error( 'vitacare_crm_graph_error', $err, 502 );
 		}
 
+		self::register_outbound_send();
+
 		$mid = isset( $data['message_id'] ) ? (string) $data['message_id'] : '';
 		if ( $mid === '' ) {
 			$mid = 'ig_local_' . wp_generate_uuid4();
@@ -368,5 +375,37 @@ final class Vitacare_Crm_Channel_Instagram {
 			'external_message_id' => $mid,
 			'created_at'          => Vitacare_Crm_Db::format_datetime( $created ),
 		);
+	}
+
+	/**
+	 * Cupo mensual de envíos salientes de Instagram Direct (mismo mecanismo
+	 * que WhatsApp/Messenger, contador propio de este canal). Bloquea de
+	 * verdad al superarse — antes Instagram no tenía ningún control de cupo.
+	 */
+	private static function check_outbound_quota(): ?WP_Error {
+		$month_key = 'vitacare_crm_outbound_count_instagram_' . gmdate( 'Y_m' );
+		$count     = (int) get_option( $month_key, 0 );
+		$limit     = Vitacare_Crm_Settings::outbound_soft_limit();
+		if ( $count < $limit ) {
+			return null;
+		}
+		Vitacare_Crm_Logger::info(
+			'outbound_limit_reached',
+			array(
+				'channel' => 'instagram',
+				'count'   => $count,
+				'limit'   => $limit,
+			)
+		);
+		return Vitacare_Crm_Db::error(
+			'vitacare_crm_quota_exceeded',
+			__( 'Se alcanzó el cupo mensual de mensajes salientes de Instagram configurado en Credenciales. Sube el cupo o espera al próximo mes.', 'vitacare-crm' ),
+			429
+		);
+	}
+
+	private static function register_outbound_send(): void {
+		$month_key = 'vitacare_crm_outbound_count_instagram_' . gmdate( 'Y_m' );
+		update_option( $month_key, (int) get_option( $month_key, 0 ) + 1, false );
 	}
 }

@@ -412,17 +412,25 @@ final class Vitacare_Crm_Channel_Whatsapp {
 			);
 		}
 
-		// Cupo soft mensual (no bloquea; se reporta en meta de respuesta vía log).
+		// Cupo mensual de envíos salientes: bloquea de verdad al superarse
+		// (antes solo se registraba en log) — protege de agotar el límite de
+		// mensajería de Meta y arriesgar la calidad del número.
 		$month_key = 'vitacare_crm_outbound_count_' . gmdate( 'Y_m' );
 		$count     = (int) get_option( $month_key, 0 );
 		$limit     = Vitacare_Crm_Settings::outbound_soft_limit();
 		if ( $count >= $limit ) {
 			Vitacare_Crm_Logger::info(
-				'outbound_soft_limit_reached',
+				'outbound_limit_reached',
 				array(
-					'count' => $count,
-					'limit' => $limit,
+					'channel' => 'whatsapp',
+					'count'   => $count,
+					'limit'   => $limit,
 				)
+			);
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_quota_exceeded',
+				__( 'Se alcanzó el cupo mensual de mensajes salientes de WhatsApp configurado en Credenciales. Sube el cupo o espera al próximo mes.', 'vitacare-crm' ),
+				429
 			);
 		}
 
@@ -604,6 +612,25 @@ final class Vitacare_Crm_Channel_Whatsapp {
 			);
 		}
 
+		$month_key = 'vitacare_crm_outbound_count_' . gmdate( 'Y_m' );
+		$count     = (int) get_option( $month_key, 0 );
+		$limit     = Vitacare_Crm_Settings::outbound_soft_limit();
+		if ( $count >= $limit ) {
+			Vitacare_Crm_Logger::info(
+				'outbound_limit_reached',
+				array(
+					'channel' => 'whatsapp',
+					'count'   => $count,
+					'limit'   => $limit,
+				)
+			);
+			return Vitacare_Crm_Db::error(
+				'vitacare_crm_quota_exceeded',
+				__( 'Se alcanzó el cupo mensual de mensajes salientes de WhatsApp configurado en Credenciales. Sube el cupo o espera al próximo mes.', 'vitacare-crm' ),
+				429
+			);
+		}
+
 		$mime   = Vitacare_Crm_Media::detect_mime_from_path( $path );
 		$bucket = Vitacare_Crm_Media::type_bucket_for_mime( $mime ); // image|audio|video|document
 		$version = Vitacare_Crm_Settings::graph_version();
@@ -708,6 +735,8 @@ final class Vitacare_Crm_Channel_Whatsapp {
 			)
 		);
 
+		update_option( $month_key, $count + 1, false );
+
 		if ( is_int( $insert ) && $insert > 0 ) {
 			Vitacare_Crm_Conversations_Repo::touch_after_message( $conversation_id, $created, false );
 			$row = Vitacare_Crm_Messages_Repo::find_by_external_id( $wamid );
@@ -730,6 +759,55 @@ final class Vitacare_Crm_Channel_Whatsapp {
 			'created_at'          => Vitacare_Crm_Db::format_datetime( $created ),
 			'warning'             => 'persisted_partial',
 		);
+	}
+
+	private const OPTION_HEALTH_CACHE = 'vitacare_crm_wa_health_cache';
+
+	/**
+	 * Salud del número (quality_rating + tier de límite de mensajería) vía
+	 * GET de solo lectura a Graph. Cacheada 15 min para no golpear la API en
+	 * cada carga de pantalla admin.
+	 *
+	 * @return array{available: bool, quality_rating: string|null, messaging_limit: string|null}
+	 */
+	public static function health(): array {
+		$cached = get_transient( self::OPTION_HEALTH_CACHE );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		$phone_id = Vitacare_Crm_Settings::get( 'phone_number_id' );
+		$token    = Vitacare_Crm_Settings::get( 'access_token' );
+		if ( $phone_id === '' || $token === '' || ! class_exists( 'Vitacare_Crm_Graph' ) ) {
+			return array(
+				'available'       => false,
+				'quality_rating'  => null,
+				'messaging_limit' => null,
+			);
+		}
+
+		$result = Vitacare_Crm_Graph::get(
+			$phone_id,
+			array( 'fields' => 'quality_rating,whatsapp_business_manager_messaging_limit' )
+		);
+
+		if ( ! $result['ok'] || ! is_array( $result['data'] ) ) {
+			$health = array(
+				'available'       => false,
+				'quality_rating'  => null,
+				'messaging_limit' => null,
+			);
+			set_transient( self::OPTION_HEALTH_CACHE, $health, 5 * MINUTE_IN_SECONDS );
+			return $health;
+		}
+
+		$health = array(
+			'available'       => true,
+			'quality_rating'  => isset( $result['data']['quality_rating'] ) ? (string) $result['data']['quality_rating'] : null,
+			'messaging_limit' => isset( $result['data']['whatsapp_business_manager_messaging_limit'] ) ? (string) $result['data']['whatsapp_business_manager_messaging_limit'] : null,
+		);
+		set_transient( self::OPTION_HEALTH_CACHE, $health, 15 * MINUTE_IN_SECONDS );
+		return $health;
 	}
 
 	private static function digits( string $s ): string {

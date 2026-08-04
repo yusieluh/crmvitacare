@@ -29,7 +29,7 @@ Luego:
 
 1. Abrir y leer **`ESTADO_CRM.md`** (completo).  
 2. Leer este archivo.  
-3. **No** rehacer PR-0…PR-6b, C-1, C-2, C-3, C-4, C-5, C-6, C-7, D-19 (puente VITACARE), D-20 (despliegue automático) ni D-22 (Zoho Mail) — ya están en `main` v1.6.1. **C-6 TikTok en particular: no reabrir para "agregar mensajería"** — el spike ya confirmó que TikTok no tiene API pública de DMs (ver D-21 en ESTADO_CRM.md), solo el conector de verificación de cuenta. **El despliegue en producción ya está resuelto** (plugin activo, `/crm` responde) — no volver a pedirle SSH/SFTP al usuario. **Zoho Mail es el correo institucional/canal principal de correo; Gmail es secundario/opcional** — no revertir ese orden sin que el usuario lo pida de nuevo.  
+3. **No** rehacer PR-0…PR-6b, C-1, C-2, C-3, C-4, C-5, C-6, C-7, D-19 (puente VITACARE), D-20 (despliegue automático), D-22 (Zoho Mail) ni D-23 Fase 1 (Reportes/salud WhatsApp/cupo endurecido) — ya están en `main` v1.7.0. **C-6 TikTok en particular: no reabrir para "agregar mensajería"** — el spike ya confirmó que TikTok no tiene API pública de DMs (ver D-21 en ESTADO_CRM.md), solo el conector de verificación de cuenta. **El despliegue en producción ya está resuelto** (plugin activo, `/crm` responde) — no volver a pedirle SSH/SFTP al usuario. **Zoho Mail es el correo institucional/canal principal de correo; Gmail es secundario/opcional** — no revertir ese orden sin que el usuario lo pida de nuevo. **D-23 Fase 2 (Leads pipeline DB v3) y siguientes NO se arrancan sin visto bueno explícito del usuario** — el plan de 5 fases se acordó a entregarse una por una, con confirmación entre cada una.  
 4. Elegir trabajo de la sección “Pendiente” de ESTADO.
 
 ---
@@ -61,10 +61,11 @@ Luego:
 - **Despliegue automático (D-20):** `.github/workflows/deploy-hostinger.yml` — push a `main` sincroniza (rsync SSH) solo `wp-content/plugins/vitacare-crm/`; requiere los 4 secrets de Hostinger cargados en Settings → Secrets **de este repo** (no se heredan de `vitacare-demo`, son por-repo en GitHub).
 - **TikTok Login Kit (C-6):** `Vitacare_Crm_Tiktok_Oauth`, OAuth v2 oficial (`vitacare-crm-tiktok` en el admin) que conecta y verifica una cuenta de TikTok (nombre, avatar, ID). **No es un canal de mensajería** — TikTok no publica ninguna API pública de DMs/comentarios para apps de terceros (confirmado, ver D-21), así que no hay webhook ni entrada en la bandeja para TikTok.
 - **Zoho Mail (D-22):** `Vitacare_Crm_Zoho`, OAuth v2 oficial (`vitacare-crm-zoho` en el admin) — **correo institucional y canal principal de correo**, bajo el mismo `channel = 'email'` que Gmail (no uno nuevo). Gmail queda como proveedor secundario/opcional. Sync entrante cron y envío desde la bandeja igual que Gmail; cada conversación recuerda en `meta.mail_provider` qué buzón la maneja (default `zoho` si no está marcado explícitamente `gmail`).
-- Admin: Cuentas, WA Coexistence checklist, Facebook (+ estado Instagram), TikTok, Gmail, Credenciales
+- **D-23 Fase 1 (métricas/marketing gratuito):** `Vitacare_Crm_Reports` (`vitacare-crm-reports` en el admin) — mensajes por canal, volumen diario, estados de conversación, tiempo de primera respuesta, carga por agente, todo sobre datos ya guardados (sin tablas nuevas). `Vitacare_Crm_Graph::get()` + `Vitacare_Crm_Channel_Whatsapp::health()` traen `quality_rating`/límite de mensajería de WhatsApp (badge en Cuentas conectadas + Reportes). El cupo mensual de envíos salientes (Credenciales) ahora **bloquea de verdad** al superarse, en WhatsApp/Messenger/Instagram (antes solo WhatsApp lo tenía y solo registraba un log).
+- Admin: Cuentas, Reportes, WA Coexistence checklist, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
 - DB upgrader a v2, logger en uploads protegido
 
-Versión plugin: **1.6.1** en `vitacare-crm.php`.
+Versión plugin: **1.7.0** en `vitacare-crm.php`.
 
 ---
 
@@ -74,8 +75,9 @@ Versión plugin: **1.6.1** en `vitacare-crm.php`.
 |---|---|
 | **Ops** | Conectar Facebook (Página + Instagram vinculado) y Gmail/Zoho Mail desde el admin, ya en el sitio real (plugin activo, deploy resuelto). |
 | **Ops** | Opcional: crear apps de desarrollador en TikTok for Developers y/o Zoho API Console si se quieren usar esos conectores (ver ESTADO_CRM.md sección 5). |
+| **D-23 Fase 2** | Pipeline de leads (DB v3) + UI — **esperando visto bueno explícito del usuario para arrancar** (plan de 5 fases acordado fase por fase). |
+| **D-23 Fase 3-5** | Enlaces con seguimiento propio, campañas de correo con opt-in, Insights gratis de Meta — dependen de que se apruebe la Fase 2 primero (o se pida saltar el orden explícitamente). |
 | **D-18** | Media saliente por Instagram: decidir si se expone media con URL firmada/expirable (Send API de IG la exige) |
-| Leads | Pipeline DB v3 + UI (post-MVP en DESIGN) |
 
 ---
 

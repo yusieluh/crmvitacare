@@ -17,25 +17,10 @@ final class Vitacare_Crm_Graph {
 	public static function post( string $path, array $body ): array {
 		$token = Vitacare_Crm_Settings::get( 'access_token' );
 		if ( $token === '' ) {
-			return array(
-				'ok'            => false,
-				'code'          => 0,
-				'data'          => null,
-				'error_code'    => null,
-				'error_message' => 'access_token_missing',
-				'raw'           => '',
-			);
+			return self::missing_token_result();
 		}
 
-		$version = Vitacare_Crm_Settings::graph_version();
-		$path    = ltrim( $path, '/' );
-		$url     = 'https://graph.facebook.com/' . rawurlencode( $version ) . '/' . $path;
-
-		$ua = sprintf(
-			'VITACARE-CRM/%s; WordPress/%s',
-			VITACARE_CRM_VERSION,
-			get_bloginfo( 'version' )
-		);
+		$url = self::build_url( $path );
 
 		$response = wp_remote_post(
 			$url,
@@ -45,12 +30,80 @@ final class Vitacare_Crm_Graph {
 				'headers'     => array(
 					'Authorization' => 'Bearer ' . $token,
 					'Content-Type'  => 'application/json',
-					'User-Agent'    => $ua,
+					'User-Agent'    => self::user_agent(),
 				),
 				'body'        => wp_json_encode( $body ),
 			)
 		);
 
+		return self::parse_response( $path, $response );
+	}
+
+	/**
+	 * GET de solo lectura a Graph (p. ej. quality_rating del phone number).
+	 *
+	 * @param array<string, string> $query
+	 * @return array{ok: bool, code: int, data: array<string, mixed>|null, error_code: int|null, error_message: string|null, raw: string}
+	 */
+	public static function get( string $path, array $query = array() ): array {
+		$token = Vitacare_Crm_Settings::get( 'access_token' );
+		if ( $token === '' ) {
+			return self::missing_token_result();
+		}
+
+		$url = self::build_url( $path );
+		if ( ! empty( $query ) ) {
+			$url = add_query_arg( $query, $url );
+		}
+
+		$response = wp_remote_get(
+			$url,
+			array(
+				'timeout'     => 15,
+				'redirection' => 0,
+				'headers'     => array(
+					'Authorization' => 'Bearer ' . $token,
+					'User-Agent'    => self::user_agent(),
+				),
+			)
+		);
+
+		return self::parse_response( $path, $response );
+	}
+
+	private static function build_url( string $path ): string {
+		$version = Vitacare_Crm_Settings::graph_version();
+		$path    = ltrim( $path, '/' );
+		return 'https://graph.facebook.com/' . rawurlencode( $version ) . '/' . $path;
+	}
+
+	private static function user_agent(): string {
+		return sprintf(
+			'VITACARE-CRM/%s; WordPress/%s',
+			VITACARE_CRM_VERSION,
+			get_bloginfo( 'version' )
+		);
+	}
+
+	/**
+	 * @return array{ok: bool, code: int, data: array<string, mixed>|null, error_code: int|null, error_message: string|null, raw: string}
+	 */
+	private static function missing_token_result(): array {
+		return array(
+			'ok'            => false,
+			'code'          => 0,
+			'data'          => null,
+			'error_code'    => null,
+			'error_message' => 'access_token_missing',
+			'raw'           => '',
+		);
+	}
+
+	/**
+	 * @param array<string, mixed>|WP_Error $response
+	 * @return array{ok: bool, code: int, data: array<string, mixed>|null, error_code: int|null, error_message: string|null, raw: string}
+	 */
+	private static function parse_response( string $path, $response ): array {
 		if ( is_wp_error( $response ) ) {
 			Vitacare_Crm_Logger::error(
 				'graph_http_error',

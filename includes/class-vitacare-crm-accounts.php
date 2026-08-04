@@ -98,18 +98,33 @@ final class Vitacare_Crm_Accounts {
 			$wa_label = __( 'Token inválido', 'vitacare-crm' );
 		}
 
+		$wa_health = class_exists( 'Vitacare_Crm_Channel_Whatsapp' ) ? Vitacare_Crm_Channel_Whatsapp::health() : array( 'available' => false, 'quality_rating' => null, 'messaging_limit' => null );
+		$wa_detail = sprintf(
+			/* translators: 1: checklist percent, 2: webhook yes/no, 3: send yes/no */
+			__( 'Coexistence checklist %1$d%% · Webhook %2$s · Envío %3$s', 'vitacare-crm' ),
+			$pct,
+			$wa_webhook ? __( 'OK', 'vitacare-crm' ) : __( 'pendiente', 'vitacare-crm' ),
+			$wa_send ? __( 'OK', 'vitacare-crm' ) : __( 'pendiente', 'vitacare-crm' )
+		);
+		if ( $wa_health['available'] ) {
+			$wa_detail .= ' · ' . sprintf(
+				/* translators: 1: quality rating, 2: messaging limit tier */
+				__( 'Calidad: %1$s · Límite de mensajería: %2$s', 'vitacare-crm' ),
+				$wa_health['quality_rating'] ?? '—',
+				$wa_health['messaging_limit'] ?? '—'
+			);
+			if ( 'GREEN' !== $wa_health['quality_rating'] && null !== $wa_health['quality_rating'] ) {
+				$wa_level = 'err';
+				$wa_label = __( 'Calidad del número en riesgo', 'vitacare-crm' );
+			}
+		}
+
 		return array(
 			'whatsapp'  => array(
 				'name'        => 'WhatsApp',
 				'level'       => $wa_level,
 				'label'       => $wa_label,
-				'detail'      => sprintf(
-					/* translators: 1: checklist percent, 2: webhook yes/no, 3: send yes/no */
-					__( 'Coexistence checklist %1$d%% · Webhook %2$s · Envío %3$s', 'vitacare-crm' ),
-					$pct,
-					$wa_webhook ? __( 'OK', 'vitacare-crm' ) : __( 'pendiente', 'vitacare-crm' ),
-					$wa_send ? __( 'OK', 'vitacare-crm' ) : __( 'pendiente', 'vitacare-crm' )
-				),
+				'detail'      => $wa_detail,
 				'action_url'  => admin_url( 'admin.php?page=vitacare-crm-whatsapp' ),
 				'action_label'=> __( 'Asistente Coexistence', 'vitacare-crm' ),
 				'flag'        => Vitacare_Crm_Settings::flag( 'whatsapp' ),
@@ -365,6 +380,7 @@ final class Vitacare_Crm_Accounts {
 			</p>
 			<p>
 				<a class="button" href="<?php echo esc_url( home_url( '/' . VITACARE_CRM_PAGE_SLUG . '/' ) ); ?>"><?php echo esc_html__( 'Abrir bandeja /crm', 'vitacare-crm' ); ?></a>
+				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-reports' ) ); ?>"><?php echo esc_html__( 'Reportes', 'vitacare-crm' ); ?></a>
 				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings' ) ); ?>"><?php echo esc_html__( 'Credenciales', 'vitacare-crm' ); ?></a>
 			</p>
 

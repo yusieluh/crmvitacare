@@ -305,10 +305,10 @@ final class Vitacare_Crm_Settings {
 				<h2><?php echo esc_html__( 'Operación', 'vitacare-crm' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row"><label for="vitacare_crm_outbound_soft_limit"><?php echo esc_html__( 'Cupo soft mensajes salientes / mes', 'vitacare-crm' ); ?></label></th>
+						<th scope="row"><label for="vitacare_crm_outbound_soft_limit"><?php echo esc_html__( 'Cupo mensajes salientes / mes (por canal)', 'vitacare-crm' ); ?></label></th>
 						<td>
 							<input name="vitacare_crm_outbound_soft_limit" id="vitacare_crm_outbound_soft_limit" type="number" min="1" step="1" value="<?php echo esc_attr( (string) self::outbound_soft_limit() ); ?>" />
-							<p class="description"><?php echo esc_html__( 'Alerta operativa (default 1000). No bloquea envíos en esta fase.', 'vitacare-crm' ); ?></p>
+							<p class="description"><?php echo esc_html__( 'Default 1000. Se aplica de forma independiente a WhatsApp, Messenger e Instagram: al alcanzarlo, ese canal bloquea el envío (no solo alerta) hasta el mes siguiente o hasta subir el cupo.', 'vitacare-crm' ); ?></p>
 						</td>
 					</tr>
 					<?php self::field_checkbox( 'vitacare_crm_debug_log', __( 'Debug log (riesgo PII — off en producción)', 'vitacare-crm' ), self::debug_enabled() ); ?>
