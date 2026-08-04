@@ -117,6 +117,7 @@ final class Vitacare_Crm_Accounts {
 			'facebook'  => self::facebook_card_status(),
 			'instagram' => self::instagram_card_status(),
 			'gmail'     => self::gmail_card_status(),
+			'zoho'      => self::zoho_card_status(),
 			'tiktok'    => self::tiktok_card_status(),
 		);
 	}
@@ -148,6 +149,40 @@ final class Vitacare_Crm_Accounts {
 			'detail'       => __( 'OAuth Google · correo en bandeja CRM.', 'vitacare-crm' ),
 			'action_url'   => admin_url( 'admin.php?page=vitacare-crm-gmail' ),
 			'action_label' => __( 'Conectar Gmail', 'vitacare-crm' ),
+			'flag'         => Vitacare_Crm_Settings::flag( 'email' ),
+		);
+	}
+
+	/**
+	 * Zoho Mail: segundo proveedor de correo bajo el mismo canal "email" que
+	 * Gmail (D-22 en ESTADO_CRM.md).
+	 *
+	 * @return array<string, mixed>
+	 */
+	private static function zoho_card_status(): array {
+		$connected = class_exists( 'Vitacare_Crm_Zoho' ) && Vitacare_Crm_Zoho::is_connected();
+		if ( $connected ) {
+			return array(
+				'name'         => 'Zoho Mail',
+				'level'        => 'ok',
+				'label'        => __( 'Conectado', 'vitacare-crm' ),
+				'detail'       => sprintf(
+					/* translators: %s: email */
+					__( 'Buzón: %s · sync automático ~5 min', 'vitacare-crm' ),
+					Vitacare_Crm_Zoho::get_email()
+				),
+				'action_url'   => admin_url( 'admin.php?page=vitacare-crm-zoho' ),
+				'action_label' => __( 'Administrar Zoho Mail', 'vitacare-crm' ),
+				'flag'         => true,
+			);
+		}
+		return array(
+			'name'         => 'Zoho Mail',
+			'level'        => 'off',
+			'label'        => __( 'Pendiente', 'vitacare-crm' ),
+			'detail'       => __( 'OAuth Zoho · segundo buzón en el mismo canal Correo que Gmail.', 'vitacare-crm' ),
+			'action_url'   => admin_url( 'admin.php?page=vitacare-crm-zoho' ),
+			'action_label' => __( 'Conectar Zoho Mail', 'vitacare-crm' ),
 			'flag'         => Vitacare_Crm_Settings::flag( 'email' ),
 		);
 	}

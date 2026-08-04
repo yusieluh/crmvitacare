@@ -312,7 +312,9 @@ final class Vitacare_Crm_Gmail {
 		delete_option( self::OPTION_EXPIRES );
 		delete_option( self::OPTION_EMAIL );
 		delete_option( self::OPTION_CONNECTED_AT );
-		update_option( 'vitacare_crm_feature_email', '', false );
+		// El flag "email" es compartido con Zoho Mail -- solo se apaga si ninguno de los dos sigue conectado.
+		$zoho_connected = class_exists( 'Vitacare_Crm_Zoho' ) && Vitacare_Crm_Zoho::is_connected();
+		update_option( 'vitacare_crm_feature_email', $zoho_connected ? '1' : '', false );
 		$ts = wp_next_scheduled( self::CRON_HOOK );
 		if ( $ts ) {
 			wp_unschedule_event( $ts, self::CRON_HOOK );
@@ -463,8 +465,9 @@ final class Vitacare_Crm_Gmail {
 			$contact_name !== '' ? $contact_name : null,
 			null,
 			array(
-				'gmail_thread' => (string) ( $msg['threadId'] ?? '' ),
-				'mailbox'      => $our_email,
+				'mail_provider' => 'gmail',
+				'gmail_thread'  => (string) ( $msg['threadId'] ?? '' ),
+				'mailbox'       => $our_email,
 			)
 		);
 		if ( $conv_id <= 0 ) {

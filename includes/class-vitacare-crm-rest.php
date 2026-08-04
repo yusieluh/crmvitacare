@@ -289,7 +289,13 @@ final class Vitacare_Crm_Rest {
 		} elseif ( $channel === 'instagram' ) {
 			$result = Vitacare_Crm_Channel_Instagram::send_text( $id, $text );
 		} elseif ( $channel === 'email' ) {
-			$result = Vitacare_Crm_Gmail::send_text( $id, $text );
+			// Dos proveedores posibles bajo el mismo canal "email" (Gmail y Zoho Mail,
+			// ver D-22 en ESTADO_CRM.md); cada conversación recuerda en meta.mail_provider
+			// cuál buzón la maneja para responder por el correcto.
+			$provider = is_array( $conv['meta'] ?? null ) ? (string) ( $conv['meta']['mail_provider'] ?? 'gmail' ) : 'gmail';
+			$result   = ( $provider === 'zoho' && class_exists( 'Vitacare_Crm_Zoho' ) )
+				? Vitacare_Crm_Zoho::send_text( $id, $text )
+				: Vitacare_Crm_Gmail::send_text( $id, $text );
 		} else {
 			return Vitacare_Crm_Db::error(
 				'vitacare_crm_invalid_param',

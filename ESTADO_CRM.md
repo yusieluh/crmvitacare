@@ -11,10 +11,10 @@
 | **Clone local típico** | `C:\Users\User\Documents\crmvitacare` |
 | **Sitio (raíz — NO TOCAR)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Plugin** | `vitacare-crm` **v1.5.0** |
-| **DB schema** | **v2** (`vitacare_crm_db_version`) — sin cambios de esquema en C-3/PR-6/PR-6b/D-19/D-20/C-6 |
+| **Plugin** | `vitacare-crm` **v1.6.0** |
+| **DB schema** | **v2** (`vitacare_crm_db_version`) — sin cambios de esquema en C-3/PR-6/PR-6b/D-19/D-20/C-6/D-22 |
 | **Última actualización docs** | 2026-08-04 |
-| **Último commit de referencia** | C-6 TikTok Login Kit (OAuth de verificación de cuenta; sin canal de mensajería — ver D-21) (este commit) |
+| **Último commit de referencia** | D-22 Zoho Mail: segundo proveedor de correo en el canal "email" junto a Gmail (este commit) |
 
 ---
 
@@ -44,7 +44,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 
 ---
 
-## 3. Estado actual del código (v1.5.0) — YA EN GITHUB
+## 3. Estado actual del código (v1.6.0) — YA EN GITHUB
 
 ### 3.1 Entregado y mergeado en `main`
 
@@ -66,6 +66,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 | **PR-6b Media saliente** | **1.3.0** | Adjuntar archivo al responder por WhatsApp/Messenger: subida multipart directa a Graph (sin URL pública), botón de clip en la bandeja |
 | **D-19 Puente VITACARE + D-20 Despliegue** | **1.4.0** | Ficha de solo lectura del contacto real de VITACARE en el panel de contexto de la bandeja (nombre, correo, rol, membresía, citas recientes, pendiente de pago) + workflow de GitHub Actions para desplegar el plugin a Hostinger automáticamente en cada push a `main` |
 | **C-6 TikTok Login Kit** | **1.5.0** | Conector OAuth v2 oficial (`Vitacare_Crm_Tiktok_Oauth`): conecta y verifica una cuenta de TikTok (nombre, avatar, ID). **Spike concluido: TikTok no tiene ninguna API pública para DMs ni comentarios de terceros** — por eso no se agregó canal de mensajería ni webhook, a diferencia de WhatsApp/Messenger/Instagram/Gmail. Ver D-21. |
+| **D-22 Zoho Mail** | **1.6.0** | Segundo proveedor de correo (`Vitacare_Crm_Zoho`), OAuth v2 oficial de Zoho Mail API (authorize, oauth/token, cuentas, carpetas, mensajes). Mismo canal `email` de la bandeja que ya usa Gmail — cada conversación guarda en `meta.mail_provider` cuál buzón la maneja, para que el envío salga por el proveedor correcto sin importar cuál de los dos recibió el mensaje. |
 
 ### 3.2 Canales en la bandeja
 
@@ -75,6 +76,7 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 | Facebook Messenger | ✅ webhook page | ✅ page token | ✅ descarga + sirve con cap | ✅ subida multipart | OAuth + elegir Página |
 | Instagram Direct | ✅ webhook instagram | ✅ Graph (`{ig-id}/messages`) | ✅ descarga + sirve con cap | ❌ (requiere URL pública, ver 3.2c) | Misma OAuth/Página de Facebook; requiere cuenta IG profesional vinculada |
 | Gmail (`email`) | ✅ cron ~5 min | ✅ Gmail API | ❌ (fuera de alcance PR-6) | ❌ | OAuth Google |
+| Zoho Mail (`email`, D-22) | ✅ cron ~5 min | ✅ Zoho Mail API | ❌ | ❌ | OAuth Zoho — mismo canal `email` que Gmail, ver 3.2f |
 | TikTok | ❌ (no existe API) | ❌ (no existe API) | ❌ | ❌ | Login Kit conecta la cuenta (C-6), pero **no es un canal de mensajes** — ver 3.2e/D-21 |
 
 ### 3.2b Media entrante (PR-6)
@@ -106,6 +108,13 @@ Plugin WordPress **independiente** instalado **junto a** el sitio VITACARE (Host
 - Guarda `open_id`, `union_id`, `display_name`, `avatar_url`, access/refresh token (cifrados igual que el resto de secretos) y su expiración. Página propia en `CRM VITACARE → TikTok` (conectar/renovar/desconectar), tarjeta en Cuentas conectadas.
 - **Hallazgo del spike (confirmado contra la documentación oficial de TikTok for Developers, 2026-08): no existe ningún producto público de TikTok para enviar/recibir DMs ni leer/responder comentarios desde una app de terceros.** Los productos disponibles son Login Kit, Share Kit, Content Posting API, Display API, Webhooks (solo eventos de contenido), Data Portability API, Research API y Business API — ninguno cubre mensajería. Por eso, a diferencia de WhatsApp/Messenger/Instagram/Gmail, TikTok **no aparece como canal en la bandeja `/crm`** ni tiene tabla de conversaciones ni webhook de mensajes: solo verifica que la cuenta está conectada. Esto es lo que D-14–16 dejaban como condición ("DMs solo si existen") — la respuesta es que no existen.
 
+### 3.2f Zoho Mail — segundo proveedor de correo (D-22)
+
+- `Vitacare_Crm_Zoho`: OAuth v2 oficial contra los endpoints reales de Zoho Mail API (`accounts.zoho.{dc}/oauth/v2/auth` para autorizar, `.../oauth/v2/token` para intercambiar/renovar; `mail.zoho.{dc}/api/accounts` para resolver `accountId`+correo, `.../folders` para ubicar el Inbox, `.../messages/view` para listar, `.../folders/{id}/messages/{id}/content` para el cuerpo, `POST .../messages` para enviar). `{dc}` es el data center de la cuenta (com/eu/in/com.au/jp), configurable en la página del conector porque Zoho tiene varios centros de datos regionales y el dominio equivocado rompe todo.
+- **Mismo canal `email` de la bandeja que ya usa Gmail**, no uno nuevo — desde `/crm` "Correo" sigue siendo un solo filtro sin importar cuál de los dos buzones recibió el mensaje. Cada conversación guarda `meta.mail_provider` (`'gmail'` o `'zoho'`) al importar cada mensaje entrante; `post_message()` en `class-vitacare-crm-rest.php` lee ese valor para enviar la respuesta por el proveedor correcto (default `'gmail'` para conversaciones viejas sin ese campo, ya que Zoho es posterior).
+- El flag de canal `vitacare_crm_feature_email` es compartido: `disconnect()` de cada proveedor solo lo apaga si el otro tampoco está conectado (nunca se pisan entre sí).
+- Sin soporte de adjuntos, igual que Gmail (fuera de alcance).
+
 ### 3.3 Estructura de archivos (plugin = raíz del repo)
 
 ```
@@ -129,6 +138,7 @@ crmvitacare/
 │   ├── class-vitacare-crm-facebook-oauth.php
 │   ├── class-vitacare-crm-tiktok-oauth.php  ← C-6: Login Kit, solo verifica cuenta (sin DMs, ver 3.2e)
 │   ├── class-vitacare-crm-gmail.php
+│   ├── class-vitacare-crm-zoho.php  ← D-22: segundo proveedor de correo, mismo canal "email" que Gmail (ver 3.2f)
 │   ├── class-vitacare-crm-page.php
 │   ├── class-vitacare-crm-rest.php
 │   ├── class-vitacare-crm-webhook.php
@@ -168,6 +178,7 @@ crmvitacare/
 | WhatsApp (oficial) | `vitacare-crm-whatsapp` |
 | Facebook | `vitacare-crm-facebook` |
 | TikTok | `vitacare-crm-tiktok` |
+| Zoho Mail | `vitacare-crm-zoho` |
 | Gmail | `vitacare-crm-gmail` |
 | Credenciales | `vitacare-crm-settings` |
 
@@ -191,6 +202,7 @@ crmvitacare/
 | D-19 | Puente de solo lectura a VITACARE (`Vitacare_Crm_Vitacare_Bridge`): consulta directa por SQL a `wp_users`/`wp_vitacare_profiles`/`wp_vitacare_appointments`/`wp_vitacare_membership_orders`/`wp_vitacare_payments` — sin depender de clases de `vitacare-core` (coherente con D-01/D-02: plugin independiente, cero acoplamiento de código). Match por correo exacto en canal `email`; por teléfono, normalizando a solo dígitos y comparando los últimos 9 (número significativo nacional Ecuador) contra `wp_vitacare_profiles.phone` (texto libre sin formato garantizado). Si una tabla no existe (vitacare-core no instalado o versión vieja), se degrada a "sin match" en vez de fallar. |
 | D-20 | Despliegue automático a Hostinger vía GitHub Actions (`.github/workflows/deploy-hostinger.yml`), mismo patrón SSH+rsync que ya usa `vitacare-demo`, mismos 4 secrets (`HOSTINGER_SSH_KEY`/`HOST`/`PORT`/`USER`) pero copiados aparte a los Settings → Secrets propios de este repo (los secrets de GitHub son por-repo). El rsync sincroniza solo `wp-content/plugins/vitacare-crm/`, nunca toca el resto del sitio; excluye `.git`/`.github`/`dist`/`tests`/`bin`/`.idea`/`.vscode`/`.gitignore` (mismo criterio que el ZIP manual de `bin/package-plugin.ps1`). Sin `--delete`, mismo criterio de seguridad que `vitacare-demo`. |
 | D-21 | **C-6 TikTok — hallazgo del spike:** TikTok for Developers no publica ningún producto de API pública para que una app de terceros envíe/reciba DMs o lea/responda comentarios (confirmado contra su documentación oficial, 2026-08: Login Kit, Share Kit, Content Posting API, Display API, Webhooks de contenido, Data Portability, Research API, Business API — ninguno cubre mensajería). Se implementó únicamente Login Kit (OAuth v2 oficial) para conectar/verificar la cuenta; TikTok **no** se agrega como canal de la bandeja ni tiene webhook de mensajes. Si TikTok publica una API de mensajería en el futuro, recién ahí se revisita como canal real. |
+| D-22 | Zoho Mail (`Vitacare_Crm_Zoho`) se agrega como **segundo proveedor bajo el mismo canal `email`** que ya usa Gmail, no como canal nuevo — desde la bandeja, "Correo" sigue siendo un solo filtro. Cada conversación guarda `meta.mail_provider` (`gmail`/`zoho`) al importar cada mensaje entrante, y `post_message()` en el REST controller lee ese valor para responder por el buzón correcto. El flag de canal `vitacare_crm_feature_email` es compartido: el `disconnect()` de cada proveedor solo lo apaga si el otro tampoco está conectado. Zoho tiene varios data centers regionales (com/eu/in/com.au/jp) — el dominio se configura explícitamente en la página del conector, con `com` como default razonable, porque un dominio equivocado rompe la conexión entera. |
 
 ---
 
@@ -198,12 +210,14 @@ crmvitacare/
 
 | Prioridad | ID | Trabajo |
 |---|---|---|
-| **Alta — EN CURSO** | **Ops** | Desplegar en `vitacareec.org` (WP prod) — `/crm` sigue dando 404 porque el plugin **nunca se instaló en el sitio real**, solo existe en GitHub. **Cambio de plan (v1.4.0):** en vez de pedirle al usuario credenciales SSH/SFTP para que una sesión de IA se conecte directo (lo que se intentó antes, ver 5b, sin respuesta del usuario), ahora existe `deploy-hostinger.yml` — el usuario solo necesita cargar los 4 secrets de Hostinger (`HOSTINGER_SSH_KEY`/`HOST`/`PORT`/`USER`) en Settings → Secrets de **este repo** (son independientes de los de `vitacare-demo`, no se heredan) y GitHub Actions hace el despliegue solo en cada push a `main`, sin exponer ninguna credencial en el chat. **Estado: esperando que el usuario cargue esos 4 secrets** — la vía SSH/SFTP interactiva de 5b queda como fallback si prefiere no usar GitHub Secrets. |
-| Alta | **Ops** | Configurar Meta + Google; agregar producto Instagram en la App de Meta; probar `/crm` |
+| Alta | **Ops** | Configurar Meta (App ID/Secret) y conectar Facebook (Página) + Instagram vinculado; agregar producto Instagram en la App de Meta; probar `/crm` en vivo con un mensaje real |
 | Media | **Ops** | Si se quiere usar el conector TikTok (C-6): crear una app en TikTok for Developers con producto Login Kit, registrar la redirect URI (`wp-admin/admin.php?page=vitacare-crm-tiktok`) y cargar Client Key/Secret en CRM → Credenciales. Opcional — el conector solo verifica la cuenta, no habilita mensajería (ver D-21). |
+| Media | **Ops** | Si se quiere usar Zoho Mail (D-22) además de o en vez de Gmail: crear una app "Server-based Applications" en la Zoho API Console, registrar la redirect URI (`wp-admin/admin.php?page=vitacare-crm-zoho`), confirmar el data center de la cuenta, y cargar Client ID/Secret en esa misma página. |
 | Media | **D-18** | Decidir si vale la pena exponer media públicamente (con firma/expiración) para habilitar envío de adjuntos por Instagram |
 | Baja | Polish | Leads pipeline (DB v3), roles staff, notificaciones, limpieza de adjuntos subidos y nunca enviados |
 | Baja | **D-19 UI** | El match VITACARE por ahora solo se muestra en el panel de contexto de la bandeja; falta decidir si conviene una acción rápida desde ahí (ej. "Ver ficha completa" hacia `panel-administrador`/`panel-rrhh` de vitacare-demo) — no implementado, solo lectura de datos, ver 3.2d |
+
+**Ops resuelto (2026-08-04):** el despliegue automático a Hostinger (D-20) quedó verificado en producción — se cargaron los 4 secrets en este repo, el workflow corrió y sincronizó los archivos (un primer intento falló por el mismo error transitorio de `ssh-keyscan` que ya se documentó en `vitacare-demo`, se resolvió con un reintento), y el plugin se activó manualmente desde WP Admin → Plugins. `https://vitacareec.org/crm` responde 302 a login (correcto, exige sesión + capability) en vez de 404. Sección 5b (vía SSH/SFTP interactiva) queda obsoleta, ya no hace falta.
 
 ### 5b. Despliegue en producción — retomar aquí primero
 
@@ -223,10 +237,10 @@ Contexto exacto para quien retome (Grok, Claude Code, u otra sesión):
 
 ### Siguiente paso de ingeniería recomendado
 
-1. `git pull` del repo (ya en `main`, v1.5.0).  
-2. **Primero: cerrar el despliegue en producción** — pedirle al usuario los 4 secrets de Hostinger para este repo (vía preferida, sección 5) o retomar la vía SSH/SFTP interactiva de 5b si los prefiere no cargar en GitHub. Es lo que el usuario está esperando ahora mismo.  
-3. Completar Coexistence WA + Facebook Page (y cuenta Instagram vinculada) + Gmail en admin, ya en el sitio real.  
-4. Código nuevo (después del despliegue): decidir/implementar D-18 (media saliente Instagram). **C-6 TikTok ya está resuelto** (Login Kit conecta la cuenta; sin API de mensajería, ver D-21) — no reabrir salvo que TikTok publique una API de DMs.
+1. `git pull` del repo (ya en `main`, v1.6.0).  
+2. **Despliegue en producción ya resuelto** (ver nota en sección 5) — `/crm` responde en `vitacareec.org`, plugin activo. No hace falta repetir nada de eso.  
+3. Completar Coexistence WA + Facebook Page (y cuenta Instagram vinculada) + Gmail/Zoho Mail en admin, ya en el sitio real — es lo único operativo que sigue pendiente.  
+4. Código nuevo: decidir/implementar D-18 (media saliente Instagram). **C-6 TikTok y D-22 Zoho Mail ya están resueltos** — no reabrir TikTok salvo que publique una API de DMs; Zoho ya es un proveedor de correo completo (in/out) igual que Gmail.
 
 ---
 
@@ -262,7 +276,9 @@ cd C:\Users\User\Documents\crmvitacare && git pull origin main
 | 2026-08-03 | PR-6 Media v1.2.0 (descarga opaca WA/Messenger/IG, endpoint `/media/{id}`, render en bandeja) | `f38597b` |
 | 2026-08-03 | **PR-6b Media saliente v1.3.0** (subida multipart WA/Messenger, `/media/upload`, botón de clip en bandeja; Instagram pendiente D-18) | este commit |
 | 2026-08-04 | **D-19 Puente solo-lectura a VITACARE + D-20 Despliegue automático v1.4.0** (`Vitacare_Crm_Vitacare_Bridge`, endpoint `/conversations/{id}/vitacare-contact`, ficha del contacto en el panel de contexto de la bandeja; workflow `.github/workflows/deploy-hostinger.yml` SSH+rsync a `wp-content/plugins/vitacare-crm/`) | `f8a8d50` |
-| 2026-08-04 | **C-6 TikTok Login Kit v1.5.0** (`Vitacare_Crm_Tiktok_Oauth`, OAuth v2 oficial de verificación de cuenta; spike concluido: sin API pública de DMs/comentarios de terceros, TikTok no se agrega como canal de la bandeja — D-21) | este commit |
+| 2026-08-04 | **C-6 TikTok Login Kit v1.5.0** (`Vitacare_Crm_Tiktok_Oauth`, OAuth v2 oficial de verificación de cuenta; spike concluido: sin API pública de DMs/comentarios de terceros, TikTok no se agrega como canal de la bandeja — D-21) | `1b04c48` |
+| 2026-08-04 | **Ops: despliegue verificado en producción** — 4 secrets de Hostinger cargados en este repo, workflow corrido (con un reintento por el mismo error transitorio de `ssh-keyscan` ya conocido de `vitacare-demo`), plugin activado manualmente en WP Admin, `/crm` confirmado respondiendo 302 a login en vez de 404 | (sin commit de código) |
+| 2026-08-04 | **D-22 Zoho Mail v1.6.0** (`Vitacare_Crm_Zoho`, segundo proveedor de correo bajo el mismo canal `email` que Gmail — OAuth v2 oficial, sync entrante cron, envío saliente; `meta.mail_provider` por conversación decide qué buzón responde) | este commit |
 
 ---
 
