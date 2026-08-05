@@ -11,10 +11,10 @@
 | **Clone local típico** | `C:\Users\User\Documents\crmvitacare` |
 | **Sitio (raíz — NO TOCAR)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Plugin** | `vitacare-crm` **v1.14.0** |
+| **Plugin** | `vitacare-crm` **v1.14.1** |
 | **DB schema** | **v5** (`vitacare_crm_db_version`) — sin cambios de esquema desde D-27; D-26 agregó `wp_vitacare_crm_email_campaigns` + `wp_vitacare_crm_campaign_recipients`; D-25 agregó `wp_vitacare_crm_link_clicks`; D-24 agregó `wp_vitacare_crm_leads` + columna `lead_id` en conversations; sin cambios de esquema en C-3/PR-6/PR-6b/D-19/D-20/C-6/D-22/D-23 |
 | **Última actualización docs** | 2026-08-05 |
-| **Último commit de referencia** | D-28 Fase 4 (reestructuración de integraciones Meta): separación real de credenciales por canal en Credenciales — 4 bloques con ancla propia (Meta/WhatsApp/Messenger/Instagram) (este commit) |
+| **Último commit de referencia** | Fix v1.14.1: challenge del webhook Meta como texto plano exacto (sin JSON) — solo la rama de éxito de `handle_get()` (este commit) |
 
 ---
 
@@ -369,6 +369,7 @@ cd C:\Users\User\Documents\crmvitacare && git pull origin main
 | 2026-08-05 | **D-28 Fase 2 v1.12.0**: `Vitacare_Crm_Backup` — respaldo/restauración manual de credenciales de integraciones Meta (App ID/Secret, tokens, WABA/Phone Number ID, Facebook/Instagram) a JSON fuera del webroot público (`VITACARE_PRIVATE_STORAGE_DIR`), sin desencriptar ni mostrar secretos; botón en Credenciales, restauración por archivo con confirmación server-side | `62845f4` |
 | 2026-08-05 | **D-28 Fase 3 v1.13.0**: `Vitacare_Crm_Integrations_Page` (submenú Integraciones, pestañas por canal) + `Vitacare_Crm_Whatsapp_Embedded_Signup` (asistente oficial FB.login + `featureType: whatsapp_business_app_onboarding`, sin QR local, code exchange servidor-a-servidor). No conecta ningún activo real — queda listo para que el usuario complete el diálogo de Meta cuando lo decida. **Cierra el plan de reestructuración de integraciones (D-28, Fases 1-3) — no hay Fase 4 planeada** | `a30b890` |
 | 2026-08-05 | **D-28 Fase 4 v1.14.0** (corrección puntual pedida tras revisar Fase 3 en vivo): Credenciales reorganizada en 4 bloques con ancla propia (Meta/WhatsApp/Messenger/Instagram); nuevas opciones `wa_business_id`/`wa_embedded_config_id`/`wa_phone`; constante preferida `VITACARE_CRM_WA_SYSTEM_USER_TOKEN` (con fallback no destructivo a la antigua `VITACARE_CRM_META_ACCESS_TOKEN`); constantes opcionales para Messenger/Instagram en `Vitacare_Crm_Facebook_Oauth` sin tocar su OAuth; botón "Borrar" por secreto con confirmación; flags Messenger/Instagram/Correo ya no dicen "(futuro)". **Reabre y cierra D-28 en Fase 4 — no hay Fase 5 planeada** | `ac05a98` |
+| 2026-08-05 | **Fix v1.14.1**: `Vitacare_Crm_Webhook::handle_get()` respondía el `hub.challenge` envuelto en JSON (`"12345"`) porque `WP_REST_Response` siempre pasa por el serializador JSON del REST server sin importar el header `Content-Type`. Ahora, solo en la rama de éxito, escribe la respuesta directo con `status_header()`/`header()`/`echo`/`exit`, devolviendo el challenge como texto plano exacto (`12345`, sin comillas). La rama de error (403, token inválido) y toda la lógica POST/firma `X-Hub-Signature-256` no se tocaron — confirmado en producción que `invalid_verify_token` sigue devolviendo 403 JSON igual que antes | `2d090b9` |
 
 ---
 
