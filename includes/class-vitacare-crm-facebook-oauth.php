@@ -108,7 +108,35 @@ final class Vitacare_Crm_Facebook_Oauth {
 	}
 
 	/**
-	 * Procesa callback OAuth (code) antes de render.
+	 * Redirige exactamente a la URI de callback registrada en Meta (nunca a
+	 * admin_url() genérico ni a un fallback silencioso), con el resultado y
+	 * un flash-message sanitizado.
+	 */
+	private static function redirect_with_result( string $status, string $message, array $extra_args = array() ): void {
+		update_option( 'vitacare_crm_fb_oauth_last_status', $status, false );
+		set_transient(
+			'vitacare_crm_fb_flash',
+			array(
+				'type' => 'success' === $status ? 'success' : 'error',
+				'msg'  => $message,
+			),
+			60
+		);
+		// redirect_uri() ya trae su propio "?page=...", así que aquí sí es
+		// seguro usar add_query_arg() (los valores son flags simples sin
+		// caracteres especiales, no una URL anidada).
+		$args                   = $extra_args;
+		$args['vitacare_oauth'] = $status;
+		$target                 = add_query_arg( $args, self::redirect_uri() );
+		Vitacare_Crm_Logger::info( 'fb_oauth_redirect', array( 'status' => $status, 'target' => $target ) );
+		wp_safe_redirect( $target );
+		exit;
+	}
+
+	/**
+	 * Procesa callback OAuth (code) antes de render. Se ejecuta exactamente
+	 * cuando WordPress carga admin.php?page=vitacare-crm-facebook con
+	 * code/state o error en la query string.
 	 */
 	public static function maybe_handle_oauth_return(): void {
 		if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
@@ -124,67 +152,50 @@ final class Vitacare_Crm_Facebook_Oauth {
 		if ( isset( $_GET['error'] ) ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			$desc = isset( $_GET['error_description'] ) ? sanitize_text_field( wp_unslash( $_GET['error_description'] ) ) : '';
-			set_transient(
-				'vitacare_crm_fb_flash',
-				array(
-					'type' => 'error',
-					'msg'  => $desc !== '' ? $desc : __( 'Facebook denegó el acceso.', 'vitacare-crm' ),
-				),
-				60
-			);
-			wp_safe_redirect( self::redirect_uri() );
-			exit;
+			Vitacare_Crm_Logger::info( 'fb_oauth_callback', array( 'error' => true, 'has_code' => false, 'has_state' => false ) );
+			self::redirect_with_result( 'error', $desc !== '' ? $desc : __( 'Facebook denegó el acceso.', 'vitacare-crm' ) );
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		if ( empty( $_GET['code'] ) ) {
+		$has_code = ! empty( $_GET['code'] );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$has_state = ! empty( $_GET['state'] );
+		if ( ! $has_code && ! $has_state ) {
+			// Ni code, ni state, ni error: no es un retorno de OAuth, es solo
+			// abrir la página normalmente. No hacer nada.
 			return;
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
-		$saved = (string) get_transient( self::TRANSIENT_STATE );
-		delete_transient( self::TRANSIENT_STATE );
+		Vitacare_Crm_Logger::info( 'fb_oauth_callback', array( 'error' => false, 'has_code' => $has_code, 'has_state' => $has_state ) );
 
-		if ( $saved === '' || ! hash_equals( $saved, $state ) ) {
-			set_transient(
-				'vitacare_crm_fb_flash',
-				array(
-					'type' => 'error',
-					'msg'  => __( 'Estado OAuth inválido. Vuelve a intentar «Conectar con Facebook».', 'vitacare-crm' ),
-				),
-				60
-			);
-			wp_safe_redirect( self::redirect_uri() );
-			exit;
+		if ( ! $has_code ) {
+			self::redirect_with_result( 'error', __( 'Meta no envió el código de autorización (falta "code" en el retorno).', 'vitacare-crm' ) );
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$state = $has_state ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+		$saved = (string) get_transient( self::state_transient_key() );
+		delete_transient( self::state_transient_key() );
+
+		$state_valid = $saved !== '' && hash_equals( $saved, $state );
+		Vitacare_Crm_Logger::info( 'fb_oauth_state_check', array( 'valid' => $state_valid ) );
+
+		if ( ! $state_valid ) {
+			self::redirect_with_result( 'error', __( 'Estado OAuth inválido. Vuelve a intentar «Conectar con Facebook».', 'vitacare-crm' ) );
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$code   = sanitize_text_field( wp_unslash( $_GET['code'] ) );
 		$result = self::exchange_code( $code );
 		if ( is_wp_error( $result ) ) {
-			set_transient(
-				'vitacare_crm_fb_flash',
-				array(
-					'type' => 'error',
-					'msg'  => $result->get_error_message(),
-				),
-				60
-			);
-			wp_safe_redirect( self::redirect_uri() );
-			exit;
+			self::redirect_with_result( 'error', $result->get_error_message() );
 		}
 
-		set_transient(
-			'vitacare_crm_fb_flash',
-			array(
-				'type' => 'success',
-				'msg'  => __( 'Cuenta Facebook autorizada. Elige la Página que administras.', 'vitacare-crm' ),
-			),
-			60
+		self::redirect_with_result(
+			'success',
+			__( 'Cuenta Facebook autorizada. Elige la Página que administras.', 'vitacare-crm' ),
+			array( 'select_page' => '1' )
 		);
-		wp_safe_redirect( self::redirect_uri() . '&select_page=1' );
-		exit;
 	}
 
 	/**
@@ -200,15 +211,15 @@ final class Vitacare_Crm_Facebook_Oauth {
 			);
 		}
 
-		$version = Vitacare_Crm_Settings::graph_version();
-		$token_url = add_query_arg(
+		$version   = Vitacare_Crm_Settings::graph_version();
+		$token_url = self::build_url(
+			'https://graph.facebook.com/' . rawurlencode( $version ) . '/oauth/access_token',
 			array(
 				'client_id'     => $app_id,
 				'client_secret' => $app_secret,
 				'redirect_uri'  => self::redirect_uri(),
 				'code'          => $code,
-			),
-			'https://graph.facebook.com/' . rawurlencode( $version ) . '/oauth/access_token'
+			)
 		);
 
 		$response = wp_remote_get(
@@ -222,10 +233,13 @@ final class Vitacare_Crm_Facebook_Oauth {
 		);
 
 		if ( is_wp_error( $response ) ) {
+			Vitacare_Crm_Logger::error( 'fb_oauth_token_http_error', array( 'msg' => $response->get_error_message() ) );
 			return $response;
 		}
 
-		$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		$http_code = (int) wp_remote_retrieve_response_code( $response );
+		$body      = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		Vitacare_Crm_Logger::info( 'fb_oauth_token_exchange', array( 'http_code' => $http_code ) );
 		if ( ! is_array( $body ) || empty( $body['access_token'] ) ) {
 			$msg = isset( $body['error']['message'] ) ? (string) $body['error']['message'] : __( 'No se obtuvo access token.', 'vitacare-crm' );
 			return new WP_Error( 'vitacare_crm_fb_token', $msg );
@@ -234,14 +248,14 @@ final class Vitacare_Crm_Facebook_Oauth {
 		$user_token = (string) $body['access_token'];
 
 		// Long-lived user token.
-		$ll_url = add_query_arg(
+		$ll_url = self::build_url(
+			'https://graph.facebook.com/' . rawurlencode( $version ) . '/oauth/access_token',
 			array(
 				'grant_type'        => 'fb_exchange_token',
 				'client_id'         => $app_id,
 				'client_secret'     => $app_secret,
 				'fb_exchange_token' => $user_token,
-			),
-			'https://graph.facebook.com/' . rawurlencode( $version ) . '/oauth/access_token'
+			)
 		);
 		$ll_res = wp_remote_get( $ll_url, array( 'timeout' => 20 ) );
 		if ( ! is_wp_error( $ll_res ) ) {
@@ -317,6 +331,27 @@ final class Vitacare_Crm_Facebook_Oauth {
 		return $out;
 	}
 
+	/**
+	 * Transient de state ligado al admin actual (no una clave global compartida).
+	 */
+	private static function state_transient_key(): string {
+		return self::TRANSIENT_STATE . '_' . get_current_user_id();
+	}
+
+	/**
+	 * Construye una URL con querystring correctamente codificado (rawurlencode
+	 * por valor, vía http_build_query RFC3986). add_query_arg() de WordPress
+	 * NO codifica los valores -- por eso redirect_uri (que trae "?" y "=")
+	 * corrompía el querystring externo del diálogo de Facebook, y Meta caía a
+	 * un redirect por defecto sin code/state/error en vez de completar el
+	 * OAuth. Esta es la causa raíz del bug reportado.
+	 *
+	 * @param array<string, string> $args
+	 */
+	private static function build_url( string $base, array $args ): string {
+		return $base . '?' . http_build_query( $args, '', '&', PHP_QUERY_RFC3986 );
+	}
+
 	public static function start_oauth_url(): string|WP_Error {
 		$app_id = Vitacare_Crm_Settings::get( 'app_id' );
 		if ( $app_id === '' ) {
@@ -333,21 +368,31 @@ final class Vitacare_Crm_Facebook_Oauth {
 		}
 
 		$state = wp_generate_password( 32, false, false );
-		set_transient( self::TRANSIENT_STATE . '_' . get_current_user_id(), $state, 600 );
-		// También clave global corta usada en maybe_handle — use user-specific:
-		set_transient( self::TRANSIENT_STATE, $state, 600 );
+		set_transient( self::state_transient_key(), $state, 600 );
 
-		$version = Vitacare_Crm_Settings::graph_version();
-		return add_query_arg(
+		$redirect_uri = self::redirect_uri();
+		$version      = Vitacare_Crm_Settings::graph_version();
+		$url          = self::build_url(
+			'https://www.facebook.com/' . rawurlencode( $version ) . '/dialog/oauth',
 			array(
 				'client_id'     => $app_id,
-				'redirect_uri'  => self::redirect_uri(),
+				'redirect_uri'  => $redirect_uri,
 				'state'         => $state,
 				'scope'         => self::SCOPES,
 				'response_type' => 'code',
-			),
-			'https://www.facebook.com/' . rawurlencode( $version ) . '/dialog/oauth'
+			)
 		);
+
+		update_option( 'vitacare_crm_fb_oauth_last_status', 'started', false );
+		Vitacare_Crm_Logger::info(
+			'fb_oauth_started',
+			array(
+				'redirect_uri' => $redirect_uri,
+				'user_id'      => get_current_user_id(),
+			)
+		);
+
+		return $url;
 	}
 
 	public static function select_page( string $page_id ): true|WP_Error {
@@ -579,6 +624,49 @@ final class Vitacare_Crm_Facebook_Oauth {
 		delete_transient( 'vitacare_crm_ig_insights' );
 	}
 
+	/**
+	 * Prueba administrativa de diagnóstico del flujo OAuth (sin secretos):
+	 * URI generada, handler de callback registrado, state creado, estado de
+	 * la última autorización.
+	 */
+	private static function render_oauth_diagnostics( string $redirect ): void {
+		$handler_priority = has_action( 'admin_init', array( __CLASS__, 'maybe_handle_oauth_return' ) );
+		$state_present    = get_transient( self::state_transient_key() ) !== false;
+		$last_status      = (string) get_option( 'vitacare_crm_fb_oauth_last_status', '' );
+		$status_labels    = array(
+			''         => __( 'Sin intentos todavía', 'vitacare-crm' ),
+			'started'  => __( 'Iniciado, esperando retorno de Meta', 'vitacare-crm' ),
+			'success'  => __( 'Última autorización: éxito', 'vitacare-crm' ),
+			'error'    => __( 'Última autorización: error', 'vitacare-crm' ),
+		);
+		?>
+		<div class="vcrm-callout" style="background:#fcfcfc;border:1px solid #dcdcde;border-radius:6px;padding:12px 14px;margin:12px 0">
+			<h3 style="margin-top:0"><?php echo esc_html__( 'Diagnóstico OAuth Facebook/Messenger', 'vitacare-crm' ); ?></h3>
+			<p style="margin:.25em 0">
+				<strong><?php echo esc_html__( 'OAuth Redirect URI generada:', 'vitacare-crm' ); ?></strong>
+				<code><?php echo esc_html( $redirect ); ?></code>
+			</p>
+			<p style="margin:.25em 0">
+				<?php echo esc_html__( 'Debe coincidir carácter por carácter con la URI registrada en Meta for Developers → tu App → Facebook Login → Valid OAuth Redirect URIs. No se puede verificar esa coincidencia automáticamente desde aquí (Meta no expone esa configuración por API) — cópiala y compárala tú mismo.', 'vitacare-crm' ); ?>
+			</p>
+			<p style="margin:.25em 0">
+				<strong><?php echo esc_html__( 'Callback handler registrado:', 'vitacare-crm' ); ?></strong>
+				<?php echo false !== $handler_priority
+					? '<span class="dashicons dashicons-yes-alt" style="color:#46b450"></span> ' . esc_html__( 'Sí', 'vitacare-crm' )
+					: '<span class="dashicons dashicons-warning" style="color:#d63638"></span> ' . esc_html__( 'No', 'vitacare-crm' ); ?>
+			</p>
+			<p style="margin:.25em 0">
+				<strong><?php echo esc_html__( 'State pendiente para este usuario:', 'vitacare-crm' ); ?></strong>
+				<?php echo $state_present ? esc_html__( 'Sí (hay una autorización en curso)', 'vitacare-crm' ) : esc_html__( 'No', 'vitacare-crm' ); ?>
+			</p>
+			<p style="margin:.25em 0">
+				<strong><?php echo esc_html__( 'Estado de la última autorización:', 'vitacare-crm' ); ?></strong>
+				<?php echo esc_html( $status_labels[ $last_status ] ?? $last_status ); ?>
+			</p>
+		</div>
+		<?php
+	}
+
 	public static function render_page(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'No tienes permiso.', 'vitacare-crm' ) );
@@ -685,6 +773,8 @@ final class Vitacare_Crm_Facebook_Oauth {
 					?>
 				</li>
 			</ol>
+
+			<?php self::render_oauth_diagnostics( $redirect ); ?>
 
 			<?php if ( $connected ) : ?>
 				<div class="vcrm-admin-card" style="background:#fff;border:1px solid #c3c4c7;border-radius:8px;padding:16px;max-width:560px">
