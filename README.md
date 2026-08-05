@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.15.1** |
+| **Versión** | **1.15.2** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,7 +21,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.15.1
+## Qué incluye v1.15.2
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API), incluida media
@@ -45,6 +45,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - **Fix v1.14.1**: el `hub.challenge` de la verificación GET del webhook Meta se devolvía envuelto en JSON (`"12345"`); ahora se responde como texto plano exacto (`12345`), como exige Meta
 - **D-29 (v1.15.0)**: botón "Ver" en Credenciales para revelar **App Secret** y **Verify Token** en pantalla (a pedido explícito del usuario) — no aplica a WhatsApp System User Token ni TikTok Client Secret
 - **Fix v1.15.1**: "Conectar con Facebook" caía en `/wp-admin/` sin completar el OAuth (`add_query_arg()` no codificaba `redirect_uri`, corrompiendo la URL del diálogo). Corregido con `http_build_query` + RFC3986; el callback ahora siempre vuelve a `admin.php?page=vitacare-crm-facebook&vitacare_oauth=success|error`, nunca a una URL genérica. Nueva prueba de diagnóstico en la página Facebook
+- **Fix v1.15.2**: la app usa **Facebook Login for Business** con una Configuration ya creada en Meta, pero el diálogo OAuth nunca enviaba `config_id` — Meta dejaba avanzar la autorización pero volvía a `/wp-admin/` sin `code`/`state`. Agregado `config_id` (campo propio en la página Facebook, separado del App ID) y scopes de Messenger acotados a los 4 que se necesitan hoy
 - Admin: Cuentas, Reportes, Leads, Enlaces, Campañas de correo, Integraciones, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
 
 ## Instalación
