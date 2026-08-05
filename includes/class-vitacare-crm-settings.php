@@ -18,9 +18,25 @@ final class Vitacare_Crm_Settings {
 			'secret' => true,
 		),
 		'access_token'    => array(
-			'const'  => 'VITACARE_CRM_META_ACCESS_TOKEN',
-			'option' => 'vitacare_crm_meta_access_token',
-			'secret' => true,
+			'const'     => 'VITACARE_CRM_META_ACCESS_TOKEN', // Obsoleta: nombre genérico heredado, seguirá funcionando pero ya no se recomienda en wp-config.
+			'const_alt' => 'VITACARE_CRM_WA_SYSTEM_USER_TOKEN',
+			'option'    => 'vitacare_crm_meta_access_token',
+			'secret'    => true,
+		),
+		'wa_business_id'  => array(
+			'const'  => 'VITACARE_CRM_WA_BUSINESS_ID',
+			'option' => 'vitacare_crm_wa_business_id',
+			'secret' => false,
+		),
+		'wa_embedded_config_id' => array(
+			'const'  => 'VITACARE_CRM_WA_CONFIGURATION_ID',
+			'option' => 'vitacare_crm_wa_embedded_config_id',
+			'secret' => false,
+		),
+		'wa_phone'        => array(
+			'const'  => 'VITACARE_CRM_WA_PHONE',
+			'option' => 'vitacare_crm_wa_phone',
+			'secret' => false,
 		),
 		'verify_token'    => array(
 			'const'  => 'VITACARE_CRM_META_VERIFY_TOKEN',
@@ -67,6 +83,12 @@ final class Vitacare_Crm_Settings {
 			return '';
 		}
 		$meta = self::SECRETS[ $key ];
+		if ( isset( $meta['const_alt'] ) && defined( $meta['const_alt'] ) ) {
+			$c = (string) constant( $meta['const_alt'] );
+			if ( $c !== '' ) {
+				return $c;
+			}
+		}
 		if ( defined( $meta['const'] ) ) {
 			$c = (string) constant( $meta['const'] );
 			if ( $c !== '' ) {
@@ -84,8 +106,25 @@ final class Vitacare_Crm_Settings {
 		if ( ! isset( self::SECRETS[ $key ] ) ) {
 			return false;
 		}
-		$const = self::SECRETS[ $key ]['const'];
-		return defined( $const ) && (string) constant( $const ) !== '';
+		$meta = self::SECRETS[ $key ];
+		if ( isset( $meta['const_alt'] ) && defined( $meta['const_alt'] ) && (string) constant( $meta['const_alt'] ) !== '' ) {
+			return true;
+		}
+		return defined( $meta['const'] ) && (string) constant( $meta['const'] ) !== '';
+	}
+
+	/**
+	 * Nombre de la constante realmente activa para un campo (prioriza const_alt).
+	 */
+	public static function active_const_name( string $key ): string {
+		if ( ! isset( self::SECRETS[ $key ] ) ) {
+			return '';
+		}
+		$meta = self::SECRETS[ $key ];
+		if ( isset( $meta['const_alt'] ) && defined( $meta['const_alt'] ) && (string) constant( $meta['const_alt'] ) !== '' ) {
+			return $meta['const_alt'];
+		}
+		return $meta['const'];
 	}
 
 	public static function flag( string $channel ): bool {
@@ -227,6 +266,7 @@ final class Vitacare_Crm_Settings {
 		}
 
 		self::handle_backup_actions();
+		self::handle_clear_secret();
 
 		$webhook = self::webhook_url();
 		$ready   = self::whatsapp_webhook_ready();
@@ -265,15 +305,12 @@ final class Vitacare_Crm_Settings {
 			<form method="post" action="">
 				<?php wp_nonce_field( 'vitacare_crm_save_settings', 'vitacare_crm_settings_nonce' ); ?>
 
-				<h2><?php echo esc_html__( 'WhatsApp / Meta', 'vitacare-crm' ); ?></h2>
+				<h2 id="meta"><?php echo esc_html__( 'Meta — Configuración general', 'vitacare-crm' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<?php
-					self::field_text( 'app_id', __( 'App ID', 'vitacare-crm' ), false );
-					self::field_secret( 'app_secret', __( 'App Secret', 'vitacare-crm' ) );
-					self::field_secret( 'access_token', __( 'Access Token (permanente / system user)', 'vitacare-crm' ) );
+					self::field_text( 'app_id', __( 'Meta App ID', 'vitacare-crm' ), false );
+					self::field_secret( 'app_secret', __( 'Meta App Secret', 'vitacare-crm' ) );
 					self::field_secret( 'verify_token', __( 'Verify Token (webhook)', 'vitacare-crm' ) );
-					self::field_text( 'phone_number_id', __( 'Phone Number ID', 'vitacare-crm' ), false );
-					self::field_text( 'waba_id', __( 'WABA ID', 'vitacare-crm' ), false );
 					?>
 					<tr>
 						<th scope="row"><label for="vitacare_crm_graph_version"><?php echo esc_html__( 'Graph API version', 'vitacare-crm' ); ?></label></th>
@@ -286,7 +323,93 @@ final class Vitacare_Crm_Settings {
 							<?php endif; ?>
 						</td>
 					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Webhook URL (solo lectura)', 'vitacare-crm' ); ?></th>
+						<td><code><?php echo esc_html( self::webhook_url() ); ?></code></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'OAuth Redirect URI — Facebook Login (solo lectura)', 'vitacare-crm' ); ?></th>
+						<td><code><?php echo esc_html( Vitacare_Crm_Facebook_Oauth::redirect_uri() ); ?></code></td>
+					</tr>
 				</table>
+
+				<h2 id="whatsapp"><?php echo esc_html__( 'WhatsApp', 'vitacare-crm' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<?php
+					self::field_secret( 'access_token', __( 'WhatsApp System User Access Token', 'vitacare-crm' ) );
+					self::field_text( 'wa_business_id', __( 'Business ID', 'vitacare-crm' ), false );
+					self::field_text( 'waba_id', __( 'WABA ID', 'vitacare-crm' ), false );
+					self::field_text( 'phone_number_id', __( 'Phone Number ID', 'vitacare-crm' ), false );
+					self::field_text( 'wa_embedded_config_id', __( 'Configuration ID (Embedded Signup)', 'vitacare-crm' ), false );
+					self::field_text( 'wa_phone', __( 'Número internacional (ej. +593984692001)', 'vitacare-crm' ), false );
+					?>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Estado de coexistencia', 'vitacare-crm' ); ?></th>
+						<td><code><?php echo esc_html( Vitacare_Crm_Whatsapp_Embedded_Signup::status() ); ?></code></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Estado del webhook', 'vitacare-crm' ); ?></th>
+						<td>
+							<?php if ( self::whatsapp_webhook_ready() ) : ?>
+								<span class="dashicons dashicons-yes-alt" style="color:green"></span> <?php echo esc_html__( 'Listo (flag + App Secret + Verify Token)', 'vitacare-crm' ); ?>
+							<?php else : ?>
+								<span class="dashicons dashicons-warning" style="color:#dba617"></span> <?php echo esc_html__( 'Incompleto — webhook responde 403 hasta completar flag + App Secret + Verify Token', 'vitacare-crm' ); ?>
+							<?php endif; ?>
+						</td>
+					</tr>
+				</table>
+
+				<h2 id="messenger"><?php echo esc_html__( 'Messenger', 'vitacare-crm' ); ?></h2>
+				<p class="description"><?php echo esc_html__( 'Page ID y Page Access Token se establecen al conectar la Página en Facebook (OAuth) — no se pegan manualmente aquí, para no desincronizarlos del token real que devuelve Meta.', 'vitacare-crm' ); ?></p>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Page ID', 'vitacare-crm' ); ?></th>
+						<td><?php echo Vitacare_Crm_Facebook_Oauth::get_page_id() !== '' ? '<code>' . esc_html( Vitacare_Crm_Facebook_Oauth::get_page_id() ) . '</code>' : '<em>' . esc_html__( 'No conectado', 'vitacare-crm' ) . '</em>'; ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Nombre de la página', 'vitacare-crm' ); ?></th>
+						<td><?php echo esc_html( Vitacare_Crm_Facebook_Oauth::get_page_name() ?: '—' ); ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Page Access Token', 'vitacare-crm' ); ?></th>
+						<td><?php echo Vitacare_Crm_Facebook_Oauth::get_page_token() !== '' ? esc_html__( 'Configurado', 'vitacare-crm' ) : esc_html__( 'No configurado', 'vitacare-crm' ); ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Estado del webhook', 'vitacare-crm' ); ?></th>
+						<td><?php echo self::flag( 'facebook' ) && Vitacare_Crm_Facebook_Oauth::is_connected() ? esc_html__( 'Activo', 'vitacare-crm' ) : esc_html__( 'Pendiente (falta flag y/o conectar Página)', 'vitacare-crm' ); ?></td>
+					</tr>
+				</table>
+				<p><a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-facebook' ) ); ?>"><?php echo esc_html__( 'Conectar / gestionar Facebook →', 'vitacare-crm' ); ?></a></p>
+
+				<h2 id="instagram"><?php echo esc_html__( 'Instagram', 'vitacare-crm' ); ?></h2>
+				<p class="description"><?php echo esc_html__( 'La cuenta profesional de Instagram se vincula a la misma Página de Facebook (Meta Business Suite) y usa el mismo Page Access Token de Messenger — no es un token distinto en este flujo oficial.', 'vitacare-crm' ); ?></p>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Instagram Business Account ID', 'vitacare-crm' ); ?></th>
+						<td><?php echo Vitacare_Crm_Facebook_Oauth::get_ig_id() !== '' ? '<code>' . esc_html( Vitacare_Crm_Facebook_Oauth::get_ig_id() ) . '</code>' : '<em>' . esc_html__( 'No vinculada', 'vitacare-crm' ) . '</em>'; ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Username', 'vitacare-crm' ); ?></th>
+						<td><?php echo esc_html( Vitacare_Crm_Facebook_Oauth::get_ig_username() ? '@' . Vitacare_Crm_Facebook_Oauth::get_ig_username() : '—' ); ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Instagram Access Token', 'vitacare-crm' ); ?></th>
+						<td><?php echo Vitacare_Crm_Facebook_Oauth::get_page_token() !== '' ? esc_html__( 'Configurado (mismo token que Messenger)', 'vitacare-crm' ) : esc_html__( 'No configurado', 'vitacare-crm' ); ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Página vinculada', 'vitacare-crm' ); ?></th>
+						<td><?php echo esc_html( Vitacare_Crm_Facebook_Oauth::get_page_name() ?: '—' ); ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Estado del webhook', 'vitacare-crm' ); ?></th>
+						<td><?php echo self::flag( 'instagram' ) && Vitacare_Crm_Facebook_Oauth::get_ig_id() !== '' ? esc_html__( 'Activo', 'vitacare-crm' ) : esc_html__( 'Pendiente (falta flag y/o vincular cuenta)', 'vitacare-crm' ); ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html__( 'Permisos solicitados', 'vitacare-crm' ); ?></th>
+						<td><code style="word-break:break-all"><?php echo esc_html( Vitacare_Crm_Facebook_Oauth::SCOPES ); ?></code></td>
+					</tr>
+				</table>
+				<p><a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-facebook' ) ); ?>"><?php echo esc_html__( 'Ir a Facebook (incluye Instagram) →', 'vitacare-crm' ); ?></a></p>
 
 				<h2><?php echo esc_html__( 'TikTok (Login Kit — solo verificación de cuenta, sin mensajería)', 'vitacare-crm' ); ?></h2>
 				<table class="form-table" role="presentation">
@@ -297,12 +420,13 @@ final class Vitacare_Crm_Settings {
 				</table>
 
 				<h2><?php echo esc_html__( 'Canales (feature flags)', 'vitacare-crm' ); ?></h2>
+				<p class="description"><?php echo esc_html__( 'Activar el flag no conecta nada por sí solo — solo habilita el canal una vez sus credenciales estén completas.', 'vitacare-crm' ); ?></p>
 				<table class="form-table" role="presentation">
 					<?php
 					self::field_checkbox( 'vitacare_crm_feature_whatsapp', __( 'WhatsApp Cloud API', 'vitacare-crm' ), self::flag( 'whatsapp' ) );
-					self::field_checkbox( 'vitacare_crm_feature_facebook', __( 'Facebook Messenger (futuro)', 'vitacare-crm' ), self::flag( 'facebook' ) );
-					self::field_checkbox( 'vitacare_crm_feature_instagram', __( 'Instagram Direct (futuro)', 'vitacare-crm' ), self::flag( 'instagram' ) );
-					self::field_checkbox( 'vitacare_crm_feature_email', __( 'Correo (futuro)', 'vitacare-crm' ), self::flag( 'email' ) );
+					self::field_checkbox( 'vitacare_crm_feature_facebook', __( 'Facebook Messenger', 'vitacare-crm' ), self::flag( 'facebook' ) );
+					self::field_checkbox( 'vitacare_crm_feature_instagram', __( 'Instagram Direct', 'vitacare-crm' ), self::flag( 'instagram' ) );
+					self::field_checkbox( 'vitacare_crm_feature_email', __( 'Correo (Gmail/Zoho)', 'vitacare-crm' ), self::flag( 'email' ) );
 					?>
 				</table>
 
@@ -320,20 +444,101 @@ final class Vitacare_Crm_Settings {
 
 				<h2><?php echo esc_html__( 'Preferir wp-config en producción', 'vitacare-crm' ); ?></h2>
 				<pre style="background:#f6f7f7;padding:12px;overflow:auto"><?php echo esc_html(
+					"// Meta — configuración general\n" .
+					"define( 'VITACARE_CRM_META_APP_ID', '...' );\n" .
 					"define( 'VITACARE_CRM_META_APP_SECRET', '...' );\n" .
-					"define( 'VITACARE_CRM_META_ACCESS_TOKEN', '...' );\n" .
 					"define( 'VITACARE_CRM_META_VERIFY_TOKEN', '...' );\n" .
+					"define( 'VITACARE_CRM_GRAPH_VERSION', 'v21.0' );\n\n" .
+					"// WhatsApp\n" .
+					"define( 'VITACARE_CRM_WA_SYSTEM_USER_TOKEN', '...' );\n" .
+					"define( 'VITACARE_CRM_WA_BUSINESS_ID', '...' );\n" .
+					"define( 'VITACARE_CRM_WA_WABA_ID', '...' );\n" .
 					"define( 'VITACARE_CRM_WA_PHONE_NUMBER_ID', '...' );\n" .
-					"define( 'VITACARE_CRM_GRAPH_VERSION', 'v21.0' );"
+					"define( 'VITACARE_CRM_WA_CONFIGURATION_ID', '...' );\n\n" .
+					"// Messenger\n" .
+					"define( 'VITACARE_CRM_MESSENGER_PAGE_ID', '...' );\n" .
+					"define( 'VITACARE_CRM_MESSENGER_PAGE_ACCESS_TOKEN', '...' );\n\n" .
+					"// Instagram (mismo token que Messenger en este flujo)\n" .
+					"define( 'VITACARE_CRM_INSTAGRAM_ACCOUNT_ID', '...' );\n" .
+					"define( 'VITACARE_CRM_INSTAGRAM_ACCESS_TOKEN', '...' );"
 				); ?></pre>
 				<p class="description">
 					<?php echo esc_html__( 'Si la constant está definida, tiene prioridad sobre el valor guardado en la base de datos.', 'vitacare-crm' ); ?>
+					<?php if ( defined( 'VITACARE_CRM_META_ACCESS_TOKEN' ) && (string) VITACARE_CRM_META_ACCESS_TOKEN !== '' && ! defined( 'VITACARE_CRM_WA_SYSTEM_USER_TOKEN' ) ) : ?>
+						<br /><strong><?php echo esc_html__( 'Nota: se detectó VITACARE_CRM_META_ACCESS_TOKEN (nombre obsoleto) definida en wp-config.php. Sigue funcionando como token de WhatsApp, pero se recomienda renombrarla a VITACARE_CRM_WA_SYSTEM_USER_TOKEN.', 'vitacare-crm' ); ?></strong>
+					<?php endif; ?>
 				</p>
 
 				<?php submit_button( __( 'Guardar ajustes CRM', 'vitacare-crm' ) ); ?>
 			</form>
+
+			<?php self::render_clear_secret_section(); ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Botones independientes para borrar un secreto puntual, cada uno con su
+	 * propia confirmación server-side (no solo HTML5) — nunca se borra por
+	 * dejar un campo vacío en el formulario principal.
+	 */
+	private static function render_clear_secret_section(): void {
+		$clearable = array(
+			'app_secret'   => __( 'Meta App Secret', 'vitacare-crm' ),
+			'access_token' => __( 'WhatsApp System User Access Token', 'vitacare-crm' ),
+			'verify_token' => __( 'Verify Token (webhook)', 'vitacare-crm' ),
+		);
+		?>
+		<h2><?php echo esc_html__( 'Eliminar una credencial', 'vitacare-crm' ); ?></h2>
+		<p class="description"><?php echo esc_html__( 'Borra un solo secreto de la base de datos (no afecta a los demás). Requiere confirmación explícita.', 'vitacare-crm' ); ?></p>
+		<table class="widefat striped" style="max-width:640px">
+			<tbody>
+				<?php foreach ( $clearable as $key => $label ) : ?>
+					<?php if ( self::is_from_constant( $key ) ) : ?>
+						<tr><td><?php echo esc_html( $label ); ?></td><td><em><?php echo esc_html__( 'Definido en wp-config.php — no se puede borrar desde aquí.', 'vitacare-crm' ); ?></em></td></tr>
+						<?php continue; ?>
+					<?php endif; ?>
+					<tr>
+						<td><?php echo esc_html( $label ); ?></td>
+						<td>
+							<form method="post" action="" style="display:flex;gap:.5em;align-items:center;flex-wrap:wrap">
+								<?php wp_nonce_field( 'vitacare_crm_clear_secret', 'vitacare_crm_clear_secret_nonce' ); ?>
+								<input type="hidden" name="vitacare_crm_clear_secret_key" value="<?php echo esc_attr( $key ); ?>" />
+								<label style="font-weight:normal">
+									<input type="checkbox" name="vitacare_crm_clear_secret_confirm" value="1" required />
+									<?php echo esc_html__( 'Confirmo borrar este valor', 'vitacare-crm' ); ?>
+								</label>
+								<button type="submit" class="button"><?php echo esc_html__( 'Borrar', 'vitacare-crm' ); ?></button>
+							</form>
+						</td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php
+	}
+
+	private static function handle_clear_secret(): void {
+		if ( ! isset( $_POST['vitacare_crm_clear_secret_nonce'] )
+			|| ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['vitacare_crm_clear_secret_nonce'] ) ), 'vitacare_crm_clear_secret' )
+		) {
+			return;
+		}
+		if ( empty( $_POST['vitacare_crm_clear_secret_confirm'] ) ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Debes confirmar para borrar una credencial.', 'vitacare-crm' ) . '</p></div>';
+			return;
+		}
+		$key = isset( $_POST['vitacare_crm_clear_secret_key'] ) ? sanitize_key( wp_unslash( $_POST['vitacare_crm_clear_secret_key'] ) ) : '';
+		if ( ! isset( self::SECRETS[ $key ] ) || ! self::SECRETS[ $key ]['secret'] ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Credencial no reconocida.', 'vitacare-crm' ) . '</p></div>';
+			return;
+		}
+		if ( self::is_from_constant( $key ) ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Ese valor viene de wp-config.php y no se puede borrar desde aquí.', 'vitacare-crm' ) . '</p></div>';
+			return;
+		}
+		update_option( self::SECRETS[ $key ]['option'], '', false );
+		echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Credencial borrada.', 'vitacare-crm' ) . '</p></div>';
 	}
 
 	private static function handle_backup_actions(): void {
@@ -463,10 +668,13 @@ final class Vitacare_Crm_Settings {
 
 		// Campos no secretos (solo si no hay constant).
 		$map_plain = array(
-			'app_id'            => 'vitacare_crm_meta_app_id',
-			'phone_number_id'   => 'vitacare_crm_wa_phone_number_id',
-			'waba_id'           => 'vitacare_crm_wa_waba_id',
-			'tiktok_client_key' => 'vitacare_crm_tiktok_client_key',
+			'app_id'                => 'vitacare_crm_meta_app_id',
+			'phone_number_id'       => 'vitacare_crm_wa_phone_number_id',
+			'waba_id'               => 'vitacare_crm_wa_waba_id',
+			'wa_business_id'        => 'vitacare_crm_wa_business_id',
+			'wa_embedded_config_id' => 'vitacare_crm_wa_embedded_config_id',
+			'wa_phone'              => 'vitacare_crm_wa_phone',
+			'tiktok_client_key'     => 'vitacare_crm_tiktok_client_key',
 		);
 		foreach ( $map_plain as $key => $opt ) {
 			if ( self::is_from_constant( $key ) ) {
@@ -511,7 +719,7 @@ final class Vitacare_Crm_Settings {
 			<td>
 				<?php if ( $fromc ) : ?>
 					<code><?php echo esc_html__( 'Definido en wp-config.php', 'vitacare-crm' ); ?></code>
-					<p class="description"><?php echo esc_html( self::SECRETS[ $key ]['const'] ); ?></p>
+					<p class="description"><?php echo esc_html( self::active_const_name( $key ) ); ?></p>
 				<?php else : ?>
 					<input
 						name="<?php echo esc_attr( $opt ); ?>"
@@ -537,7 +745,7 @@ final class Vitacare_Crm_Settings {
 			<td>
 				<?php if ( $fromc ) : ?>
 					<code><?php echo esc_html__( 'Definido en wp-config.php', 'vitacare-crm' ); ?></code>
-					<p class="description"><?php echo esc_html( self::SECRETS[ $key ]['const'] ); ?></p>
+					<p class="description"><?php echo esc_html( self::active_const_name( $key ) ); ?></p>
 				<?php else : ?>
 					<input
 						name="<?php echo esc_attr( $opt ); ?>"

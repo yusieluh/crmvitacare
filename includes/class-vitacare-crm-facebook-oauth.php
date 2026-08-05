@@ -54,6 +54,9 @@ final class Vitacare_Crm_Facebook_Oauth {
 	}
 
 	public static function get_page_id(): string {
+		if ( defined( 'VITACARE_CRM_MESSENGER_PAGE_ID' ) && (string) VITACARE_CRM_MESSENGER_PAGE_ID !== '' ) {
+			return (string) VITACARE_CRM_MESSENGER_PAGE_ID;
+		}
 		return (string) get_option( self::OPTION_PAGE_ID, '' );
 	}
 
@@ -61,7 +64,19 @@ final class Vitacare_Crm_Facebook_Oauth {
 		return (string) get_option( self::OPTION_PAGE_NAME, '' );
 	}
 
+	/**
+	 * Mismo token sirve para Messenger e Instagram en este flujo (cuenta IG
+	 * profesional vinculada a la Página, per diseño oficial de Meta) — ambas
+	 * constantes de wp-config son válidas y equivalentes; no son dos secretos
+	 * distintos hoy.
+	 */
 	public static function get_page_token(): string {
+		if ( defined( 'VITACARE_CRM_MESSENGER_PAGE_ACCESS_TOKEN' ) && (string) VITACARE_CRM_MESSENGER_PAGE_ACCESS_TOKEN !== '' ) {
+			return (string) VITACARE_CRM_MESSENGER_PAGE_ACCESS_TOKEN;
+		}
+		if ( defined( 'VITACARE_CRM_INSTAGRAM_ACCESS_TOKEN' ) && (string) VITACARE_CRM_INSTAGRAM_ACCESS_TOKEN !== '' ) {
+			return (string) VITACARE_CRM_INSTAGRAM_ACCESS_TOKEN;
+		}
 		$raw = (string) get_option( self::OPTION_PAGE_TOKEN, '' );
 		return Vitacare_Crm_Settings::read_secret( $raw );
 	}
@@ -70,6 +85,9 @@ final class Vitacare_Crm_Facebook_Oauth {
 	 * C-3: id de la cuenta profesional de Instagram vinculada a la Página conectada.
 	 */
 	public static function get_ig_id(): string {
+		if ( defined( 'VITACARE_CRM_INSTAGRAM_ACCOUNT_ID' ) && (string) VITACARE_CRM_INSTAGRAM_ACCOUNT_ID !== '' ) {
+			return (string) VITACARE_CRM_INSTAGRAM_ACCOUNT_ID;
+		}
 		return (string) get_option( self::OPTION_IG_ID, '' );
 	}
 

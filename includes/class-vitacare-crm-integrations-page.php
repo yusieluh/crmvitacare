@@ -112,24 +112,29 @@ final class Vitacare_Crm_Integrations_Page {
 		<p><strong><?php echo esc_html__( 'Graph API version:', 'vitacare-crm' ); ?></strong> <code><?php echo esc_html( Vitacare_Crm_Settings::graph_version() ); ?></code></p>
 		<p><strong><?php echo esc_html__( 'Webhook Meta:', 'vitacare-crm' ); ?></strong> <code><?php echo esc_html( Vitacare_Crm_Settings::webhook_url() ); ?></code></p>
 		<p><strong><?php echo esc_html__( 'OAuth Redirect URI (Facebook Login):', 'vitacare-crm' ); ?></strong> <code><?php echo esc_html( Vitacare_Crm_Facebook_Oauth::redirect_uri() ); ?></code></p>
-		<p><a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings' ) ); ?>"><?php echo esc_html__( 'Editar en Credenciales', 'vitacare-crm' ); ?></a></p>
+		<p><a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings#meta' ) ); ?>"><?php echo esc_html__( 'Editar credenciales →', 'vitacare-crm' ); ?></a></p>
 		<?php
 	}
 
 	private static function render_whatsapp(): void {
-		$phone   = Vitacare_Crm_Settings::get( 'phone_number_id' );
-		$waba    = Vitacare_Crm_Settings::get( 'waba_id' );
-		$token   = Vitacare_Crm_Settings::get( 'access_token' );
-		$biz     = (string) get_option( Vitacare_Crm_Whatsapp_Embedded_Signup::OPTION_BUSINESS_ID, '' );
+		$phone     = Vitacare_Crm_Settings::get( 'phone_number_id' );
+		$waba      = Vitacare_Crm_Settings::get( 'waba_id' );
+		$token     = Vitacare_Crm_Settings::get( 'access_token' );
+		$biz       = Vitacare_Crm_Settings::get( 'wa_business_id' );
+		$config_id = Vitacare_Crm_Settings::get( 'wa_embedded_config_id' );
+		$intl      = Vitacare_Crm_Settings::get( 'wa_phone' );
 		?>
 		<h2><?php echo esc_html__( 'WhatsApp', 'vitacare-crm' ); ?></h2>
 		<?php
-		self::status_row( __( 'Phone Number ID', 'vitacare-crm' ), $phone !== '', $phone );
-		self::status_row( __( 'WABA ID', 'vitacare-crm' ), $waba !== '', $waba );
+		self::status_row( __( 'System User Access Token', 'vitacare-crm' ), $token !== '' );
 		self::status_row( __( 'Business ID', 'vitacare-crm' ), $biz !== '', $biz );
-		self::status_row( __( 'Access Token', 'vitacare-crm' ), $token !== '' );
+		self::status_row( __( 'WABA ID', 'vitacare-crm' ), $waba !== '', $waba );
+		self::status_row( __( 'Phone Number ID', 'vitacare-crm' ), $phone !== '', $phone );
+		self::status_row( __( 'Configuration ID (Embedded Signup)', 'vitacare-crm' ), $config_id !== '', $config_id );
+		self::status_row( __( 'Número internacional', 'vitacare-crm' ), $intl !== '', $intl );
 		self::status_row( __( 'Canal activado (flag)', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'whatsapp' ) );
 		?>
+		<p><a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings#whatsapp' ) ); ?>"><?php echo esc_html__( 'Editar credenciales →', 'vitacare-crm' ); ?></a></p>
 		<hr />
 		<?php Vitacare_Crm_Whatsapp_Embedded_Signup::render_wizard(); ?>
 		<p style="margin-top:1em"><a href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-whatsapp' ) ); ?>"><?php echo esc_html__( '← Checklist manual de Coexistence (referencia)', 'vitacare-crm' ); ?></a></p>
@@ -140,10 +145,14 @@ final class Vitacare_Crm_Integrations_Page {
 		?>
 		<h2><?php echo esc_html__( 'Messenger', 'vitacare-crm' ); ?></h2>
 		<?php
-		self::status_row( __( 'Página conectada', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::is_connected(), Vitacare_Crm_Facebook_Oauth::get_page_name() . ' (' . Vitacare_Crm_Facebook_Oauth::get_page_id() . ')' );
+		self::status_row( __( 'Page ID', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_page_id() !== '', Vitacare_Crm_Facebook_Oauth::get_page_id() );
+		self::status_row( __( 'Nombre de la página', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_page_name() !== '', Vitacare_Crm_Facebook_Oauth::get_page_name() );
+		self::status_row( __( 'Page Access Token', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_page_token() !== '' );
 		self::status_row( __( 'Canal activado (flag)', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'facebook' ) );
+		self::status_row( __( 'Estado del webhook', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'facebook' ) && Vitacare_Crm_Facebook_Oauth::is_connected() );
 		?>
-		<p><a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-facebook' ) ); ?>"><?php echo esc_html__( 'Conectar / gestionar Facebook', 'vitacare-crm' ); ?></a></p>
+		<p><a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings#messenger' ) ); ?>"><?php echo esc_html__( 'Editar credenciales →', 'vitacare-crm' ); ?></a>
+		<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-facebook' ) ); ?>"><?php echo esc_html__( 'Conectar / gestionar Facebook', 'vitacare-crm' ); ?></a></p>
 		<?php
 	}
 
@@ -151,11 +160,16 @@ final class Vitacare_Crm_Integrations_Page {
 		?>
 		<h2><?php echo esc_html__( 'Instagram', 'vitacare-crm' ); ?></h2>
 		<?php
-		self::status_row( __( 'Cuenta vinculada', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_ig_id() !== '', '@' . Vitacare_Crm_Facebook_Oauth::get_ig_username() );
+		self::status_row( __( 'Instagram Business Account ID', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_ig_id() !== '', Vitacare_Crm_Facebook_Oauth::get_ig_id() );
+		self::status_row( __( 'Username', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_ig_username() !== '', '@' . Vitacare_Crm_Facebook_Oauth::get_ig_username() );
+		self::status_row( __( 'Instagram Access Token', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_page_token() !== '', __( 'Configurado (mismo token que Messenger)', 'vitacare-crm' ) );
+		self::status_row( __( 'Página vinculada', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_page_name() !== '', Vitacare_Crm_Facebook_Oauth::get_page_name() );
 		self::status_row( __( 'Canal activado (flag)', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'instagram' ) );
+		self::status_row( __( 'Estado del webhook', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'instagram' ) && Vitacare_Crm_Facebook_Oauth::get_ig_id() !== '' );
 		?>
 		<p class="description"><?php echo esc_html__( 'Instagram se conecta desde la misma pantalla de Facebook: la cuenta profesional debe estar vinculada a la Página en Meta Business Suite.', 'vitacare-crm' ); ?></p>
-		<p><a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-facebook' ) ); ?>"><?php echo esc_html__( 'Ir a Facebook (incluye Instagram)', 'vitacare-crm' ); ?></a></p>
+		<p><a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-settings#instagram' ) ); ?>"><?php echo esc_html__( 'Editar credenciales →', 'vitacare-crm' ); ?></a>
+		<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=vitacare-crm-facebook' ) ); ?>"><?php echo esc_html__( 'Ir a Facebook (incluye Instagram)', 'vitacare-crm' ); ?></a></p>
 		<?php
 	}
 
@@ -190,19 +204,28 @@ final class Vitacare_Crm_Integrations_Page {
 
 		<h3><?php echo esc_html__( 'WhatsApp', 'vitacare-crm' ); ?></h3>
 		<?php
-		self::status_row( __( 'Phone Number ID', 'vitacare-crm' ), Vitacare_Crm_Settings::get( 'phone_number_id' ) !== '' );
+		self::status_row( __( 'System User Access Token', 'vitacare-crm' ), Vitacare_Crm_Settings::get( 'access_token' ) !== '' );
+		self::status_row( __( 'Business ID', 'vitacare-crm' ), Vitacare_Crm_Settings::get( 'wa_business_id' ) !== '' );
 		self::status_row( __( 'WABA ID', 'vitacare-crm' ), Vitacare_Crm_Settings::get( 'waba_id' ) !== '' );
-		self::status_row( __( 'Access Token', 'vitacare-crm' ), Vitacare_Crm_Settings::get( 'access_token' ) !== '' );
+		self::status_row( __( 'Phone Number ID', 'vitacare-crm' ), Vitacare_Crm_Settings::get( 'phone_number_id' ) !== '' );
+		self::status_row( __( 'Configuration ID (Embedded Signup)', 'vitacare-crm' ), Vitacare_Crm_Settings::get( 'wa_embedded_config_id' ) !== '' );
 		self::status_row( __( 'Flag activado', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'whatsapp' ) );
 		self::status_row( __( 'Asistente Embedded Signup', 'vitacare-crm' ), true, Vitacare_Crm_Whatsapp_Embedded_Signup::status() );
 		?>
 
-		<h3><?php echo esc_html__( 'Messenger / Instagram', 'vitacare-crm' ); ?></h3>
+		<h3><?php echo esc_html__( 'Messenger', 'vitacare-crm' ); ?></h3>
 		<?php
-		self::status_row( __( 'Página Facebook', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::is_connected() );
-		self::status_row( __( 'Cuenta Instagram', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_ig_id() !== '' );
-		self::status_row( __( 'Flag Messenger', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'facebook' ) );
-		self::status_row( __( 'Flag Instagram', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'instagram' ) );
+		self::status_row( __( 'Page ID', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_page_id() !== '' );
+		self::status_row( __( 'Page Access Token', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_page_token() !== '' );
+		self::status_row( __( 'Webhook', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'facebook' ) && Vitacare_Crm_Facebook_Oauth::is_connected() );
+		?>
+
+		<h3><?php echo esc_html__( 'Instagram', 'vitacare-crm' ); ?></h3>
+		<?php
+		self::status_row( __( 'Account ID', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_ig_id() !== '' );
+		self::status_row( __( 'Access Token', 'vitacare-crm' ), Vitacare_Crm_Facebook_Oauth::get_page_token() !== '' );
+		self::status_row( __( 'Webhook', 'vitacare-crm' ), Vitacare_Crm_Settings::flag( 'instagram' ) && Vitacare_Crm_Facebook_Oauth::get_ig_id() !== '' );
+		self::status_row( __( 'Permisos', 'vitacare-crm' ), true, Vitacare_Crm_Facebook_Oauth::SCOPES );
 		?>
 
 		<h3><?php echo esc_html__( 'Correo', 'vitacare-crm' ); ?></h3>

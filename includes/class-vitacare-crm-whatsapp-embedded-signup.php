@@ -56,6 +56,9 @@ final class Vitacare_Crm_Whatsapp_Embedded_Signup {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Sin permiso.', 'vitacare-crm' ) ), 403 );
 		}
+		if ( Vitacare_Crm_Settings::is_from_constant( 'wa_embedded_config_id' ) ) {
+			wp_send_json_error( array( 'message' => __( 'El Configuration ID está definido en wp-config.php; no se puede sobrescribir desde aquí.', 'vitacare-crm' ) ), 400 );
+		}
 		$config_id = isset( $_POST['config_id'] ) ? sanitize_text_field( wp_unslash( $_POST['config_id'] ) ) : '';
 		update_option( self::OPTION_CONFIG_ID, $config_id, false );
 		wp_send_json_success( array( 'saved' => true ) );
@@ -189,7 +192,7 @@ final class Vitacare_Crm_Whatsapp_Embedded_Signup {
 
 	public static function render_wizard(): void {
 		$app_id    = Vitacare_Crm_Settings::get( 'app_id' );
-		$config_id = (string) get_option( self::OPTION_CONFIG_ID, '' );
+		$config_id = Vitacare_Crm_Settings::get( 'wa_embedded_config_id' );
 		$status    = self::status();
 		$nonce     = wp_create_nonce( 'vitacare_crm_wa_embedded' );
 		?>
