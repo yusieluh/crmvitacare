@@ -18,6 +18,15 @@ final class Vitacare_Crm_Facebook_Oauth {
 	/** ID de la Configuration de Facebook Login for Business (NO es el App ID). */
 	public const OPTION_LOGIN_CONFIG_ID = 'vitacare_crm_fb_login_config_id';
 
+	/**
+	 * Único host real del diálogo OAuth iniciado desde el navegador. NO incluye
+	 * graph.facebook.com: los intercambios con Graph API (exchange_code(),
+	 * fetch_pages(), etc.) se hacen server-side vía wp_remote_get()/
+	 * wp_remote_post(), nunca por redirección del navegador, así que ese host
+	 * no necesita (ni debe) estar en allowed_redirect_hosts.
+	 */
+	public const DIALOG_HOST = 'www.facebook.com';
+
 	/** C-3: cuenta profesional de Instagram vinculada a la Página seleccionada. */
 	public const OPTION_IG_ID       = 'vitacare_crm_ig_id';
 	public const OPTION_IG_USERNAME = 'vitacare_crm_ig_username';
@@ -38,6 +47,23 @@ final class Vitacare_Crm_Facebook_Oauth {
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'register_menu' ), 25 );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_handle_oauth_return' ), 1 );
+		add_filter( 'allowed_redirect_hosts', array( __CLASS__, 'allow_facebook_redirect_host' ) );
+	}
+
+	/**
+	 * wp_safe_redirect() rechaza por defecto cualquier host externo no
+	 * declarado aquí y sustituye el destino silenciosamente por admin_url()
+	 * -- causa raíz confirmada del fallo "Conectar con Facebook" cae siempre
+	 * en /wp-admin/ sin code/state/error (auditoría forense 2026-08-05).
+	 * Se agrega únicamente www.facebook.com, nunca graph.facebook.com (ver
+	 * comentario de DIALOG_HOST).
+	 *
+	 * @param array<int, string> $hosts
+	 * @return array<int, string>
+	 */
+	public static function allow_facebook_redirect_host( array $hosts ): array {
+		$hosts[] = self::DIALOG_HOST;
+		return $hosts;
 	}
 
 	public static function register_menu(): void {
@@ -369,7 +395,36 @@ final class Vitacare_Crm_Facebook_Oauth {
 		return $base . '?' . http_build_query( $args, '', '&', PHP_QUERY_RFC3986 );
 	}
 
-	public static function start_oauth_url(): string|WP_Error {
+	/**
+	 * Valida en estricto que la URL del diálogo OAuth generada use HTTPS, el
+	 * host exacto de DIALOG_HOST y una ruta terminada en /dialog/oauth, antes
+	 * de devolverla a start_oauth_url()/preview_oauth_url(). No confía
+	 * ciegamente en los literales usados para construirla.
+	 *
+	 * @return true|WP_Error
+	 */
+	private static function validate_oauth_dialog_url( string $url ) {
+		$parts = wp_parse_url( $url );
+		if ( ! is_array( $parts ) || ( $parts['scheme'] ?? '' ) !== 'https' ) {
+			return new WP_Error( 'vitacare_crm_fb_url', __( 'URL de diálogo OAuth inválida: debe ser HTTPS.', 'vitacare-crm' ) );
+		}
+		if ( ( $parts['host'] ?? '' ) !== self::DIALOG_HOST ) {
+			return new WP_Error( 'vitacare_crm_fb_url', __( 'URL de diálogo OAuth inválida: host inesperado.', 'vitacare-crm' ) );
+		}
+		if ( ! preg_match( '#/dialog/oauth$#', (string) ( $parts['path'] ?? '' ) ) ) {
+			return new WP_Error( 'vitacare_crm_fb_url', __( 'URL de diálogo OAuth inválida: ruta inesperada.', 'vitacare-crm' ) );
+		}
+		return true;
+	}
+
+	/**
+	 * Construye la URL del diálogo OAuth para un $state ya generado.
+	 * Compartida por start_oauth_url() (inicia el flujo real) y
+	 * preview_oauth_url() (solo la muestra al admin, sin iniciar nada).
+	 *
+	 * @return string|WP_Error
+	 */
+	private static function build_dialog_url_for_state( string $state ) {
 		$app_id = Vitacare_Crm_Settings::get( 'app_id' );
 		if ( $app_id === '' ) {
 			return new WP_Error(
@@ -384,12 +439,8 @@ final class Vitacare_Crm_Facebook_Oauth {
 			);
 		}
 
-		$state = wp_generate_password( 32, false, false );
-		set_transient( self::state_transient_key(), $state, 600 );
-
 		$redirect_uri = self::redirect_uri();
 		$config_id    = self::login_config_id();
-		$dialog_host  = 'www.facebook.com';
 		$version      = Vitacare_Crm_Settings::graph_version();
 
 		$args = array(
@@ -406,14 +457,32 @@ final class Vitacare_Crm_Facebook_Oauth {
 			$args['config_id'] = $config_id;
 		}
 
-		$url = self::build_url( 'https://' . $dialog_host . '/' . rawurlencode( $version ) . '/dialog/oauth', $args );
+		$url = self::build_url( 'https://' . self::DIALOG_HOST . '/' . rawurlencode( $version ) . '/dialog/oauth', $args );
 
+		$valid = self::validate_oauth_dialog_url( $url );
+		if ( is_wp_error( $valid ) ) {
+			return $valid;
+		}
+
+		return $url;
+	}
+
+	public static function start_oauth_url(): string|WP_Error {
+		$state = wp_generate_password( 32, false, false );
+		$url   = self::build_dialog_url_for_state( $state );
+		if ( is_wp_error( $url ) ) {
+			return $url;
+		}
+
+		set_transient( self::state_transient_key(), $state, 600 );
+
+		$config_id = self::login_config_id();
 		update_option( 'vitacare_crm_fb_oauth_last_status', 'started', false );
 		Vitacare_Crm_Logger::info(
 			'fb_oauth_started',
 			array(
-				'redirect_uri'      => $redirect_uri,
-				'dialog_host'       => $dialog_host,
+				'redirect_uri'      => self::redirect_uri(),
+				'dialog_host'       => self::DIALOG_HOST,
 				'config_id'         => $config_id,
 				'config_id_present' => $config_id !== '',
 				'scopes'            => self::SCOPES,
@@ -421,6 +490,26 @@ final class Vitacare_Crm_Facebook_Oauth {
 			)
 		);
 
+		return $url;
+	}
+
+	/**
+	 * Construye (sin iniciar el flujo real) la URL exacta que "Conectar con
+	 * Facebook" ejecutaría en este momento, para que el administrador la
+	 * revise antes de usarla. Genera y guarda un state válido (reutilizable
+	 * si luego se pulsa "Conectar"), pero a propósito NO marca el estado de
+	 * diagnóstico como "Iniciado" ni registra un intento en el log: solo
+	 * mostrarla no cuenta como un intento de conexión.
+	 *
+	 * @return string|WP_Error
+	 */
+	public static function preview_oauth_url() {
+		$state = wp_generate_password( 32, false, false );
+		$url   = self::build_dialog_url_for_state( $state );
+		if ( is_wp_error( $url ) ) {
+			return $url;
+		}
+		set_transient( self::state_transient_key(), $state, 600 );
 		return $url;
 	}
 
@@ -658,7 +747,7 @@ final class Vitacare_Crm_Facebook_Oauth {
 	 * URI generada, handler de callback registrado, state creado, estado de
 	 * la última autorización.
 	 */
-	private static function render_oauth_diagnostics( string $redirect ): void {
+	private static function render_oauth_diagnostics( string $redirect, $preview_url = null ): void {
 		$handler_priority = has_action( 'admin_init', array( __CLASS__, 'maybe_handle_oauth_return' ) );
 		$state_present    = get_transient( self::state_transient_key() ) !== false;
 		$last_status      = (string) get_option( 'vitacare_crm_fb_oauth_last_status', '' );
@@ -702,12 +791,49 @@ final class Vitacare_Crm_Facebook_Oauth {
 			</p>
 			<p style="margin:.25em 0">
 				<strong><?php echo esc_html__( 'Host del diálogo OAuth:', 'vitacare-crm' ); ?></strong>
-				<code>www.facebook.com</code>
+				<code><?php echo esc_html( self::DIALOG_HOST ); ?></code>
+				<span class="description">(<?php echo esc_html__( 'permitido en allowed_redirect_hosts', 'vitacare-crm' ); ?>)</span>
 			</p>
 			<p style="margin:.25em 0">
 				<strong><?php echo esc_html__( 'Scopes solicitados:', 'vitacare-crm' ); ?></strong>
 				<code style="word-break:break-all"><?php echo esc_html( self::SCOPES ); ?></code>
 			</p>
+
+			<form method="post" style="margin:.75em 0 0">
+				<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
+				<input type="hidden" name="fb_action" value="show_oauth_url" />
+				<?php submit_button( __( 'Mostrar URL OAuth generada', 'vitacare-crm' ), 'secondary', 'submit', false ); ?>
+			</form>
+
+			<?php if ( is_wp_error( $preview_url ) ) : ?>
+				<p style="margin:.5em 0 0"><span class="dashicons dashicons-warning" style="color:#d63638"></span> <?php echo esc_html( $preview_url->get_error_message() ); ?></p>
+			<?php elseif ( is_string( $preview_url ) && $preview_url !== '' ) : ?>
+				<?php
+				$q_parts = wp_parse_url( $preview_url );
+				$q_args  = array();
+				if ( isset( $q_parts['query'] ) ) {
+					wp_parse_str( (string) $q_parts['query'], $q_args );
+				}
+				$state_masked = '(sin state)';
+				if ( isset( $q_args['state'] ) && strlen( (string) $q_args['state'] ) > 10 ) {
+					$s            = (string) $q_args['state'];
+					$state_masked = substr( $s, 0, 4 ) . str_repeat( '•', 6 ) . substr( $s, -4 );
+				}
+				?>
+				<p style="margin:.5em 0 0"><strong><?php echo esc_html__( 'URL real que se ejecutará al pulsar «Conectar con Facebook»:', 'vitacare-crm' ); ?></strong></p>
+				<p style="margin:.25em 0">
+					<input type="text" readonly="readonly" onclick="this.select();" value="<?php echo esc_attr( $preview_url ); ?>" style="width:100%;font-family:monospace;font-size:12px" />
+				</p>
+				<p class="description" style="margin:.25em 0">
+					<?php
+					printf(
+						/* translators: %s: masked state value, e.g. "aB3d••••••9kL2" */
+						esc_html__( 'state (parcialmente oculto en esta vista, completo en el valor de arriba): %s', 'vitacare-crm' ),
+						'<code>' . esc_html( $state_masked ) . '</code>'
+					);
+					?>
+				</p>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -716,6 +842,8 @@ final class Vitacare_Crm_Facebook_Oauth {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'No tienes permiso.', 'vitacare-crm' ) );
 		}
+
+		$oauth_preview_url = null;
 
 		// Acciones POST: seleccionar página / desconectar / iniciar (redirect).
 		if ( isset( $_POST['vitacare_crm_fb_nonce'] )
@@ -768,6 +896,8 @@ final class Vitacare_Crm_Facebook_Oauth {
 					update_option( self::OPTION_LOGIN_CONFIG_ID, $cfg, false );
 					echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Configuration ID guardado.', 'vitacare-crm' ) . '</p></div>';
 				}
+			} elseif ( $action === 'show_oauth_url' ) {
+				$oauth_preview_url = self::preview_oauth_url();
 			}
 		}
 
@@ -842,7 +972,7 @@ final class Vitacare_Crm_Facebook_Oauth {
 				</form>
 			<?php endif; ?>
 
-			<?php self::render_oauth_diagnostics( $redirect ); ?>
+			<?php self::render_oauth_diagnostics( $redirect, $oauth_preview_url ); ?>
 
 			<?php if ( $connected ) : ?>
 				<div class="vcrm-admin-card" style="background:#fff;border:1px solid #c3c4c7;border-radius:8px;padding:16px;max-width:560px">
