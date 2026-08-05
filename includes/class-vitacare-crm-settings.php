@@ -226,6 +226,8 @@ final class Vitacare_Crm_Settings {
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Ajustes del CRM guardados.', 'vitacare-crm' ) . '</p></div>';
 		}
 
+		self::handle_backup_actions();
+
 		$webhook = self::webhook_url();
 		$ready   = self::whatsapp_webhook_ready();
 		?>
@@ -257,6 +259,8 @@ final class Vitacare_Crm_Settings {
 					<?php echo esc_html__( 'WhatsApp: incompleto (flag + App Secret + Verify Token). Webhooks → 403.', 'vitacare-crm' ); ?>
 				<?php endif; ?>
 			</p>
+
+			<?php self::render_backup_section(); ?>
 
 			<form method="post" action="">
 				<?php wp_nonce_field( 'vitacare_crm_save_settings', 'vitacare_crm_settings_nonce' ); ?>
@@ -329,6 +333,104 @@ final class Vitacare_Crm_Settings {
 				<?php submit_button( __( 'Guardar ajustes CRM', 'vitacare-crm' ) ); ?>
 			</form>
 		</div>
+		<?php
+	}
+
+	private static function handle_backup_actions(): void {
+		if ( ! isset( $_POST['vitacare_crm_backup_nonce'] )
+			|| ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['vitacare_crm_backup_nonce'] ) ), 'vitacare_crm_backup_action' )
+		) {
+			return;
+		}
+
+		$op = isset( $_POST['vitacare_crm_backup_op'] ) ? sanitize_key( wp_unslash( $_POST['vitacare_crm_backup_op'] ) ) : '';
+
+		if ( 'export' === $op ) {
+			$result = Vitacare_Crm_Backup::export_now();
+			if ( is_wp_error( $result ) ) {
+				echo '<div class="notice notice-error"><p>' . esc_html( $result->get_error_message() ) . '</p></div>';
+				return;
+			}
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(
+				sprintf(
+					/* translators: 1: file name, 2: byte count, 3: number of keys backed up */
+					__( 'Respaldo generado: %1$s (%2$d bytes, %3$d claves). Guardado fuera del directorio público del plugin.', 'vitacare-crm' ),
+					$result['file'],
+					$result['bytes'],
+					$result['keys']
+				)
+			) . '</p></div>';
+			return;
+		}
+
+		if ( 'restore' === $op ) {
+			if ( empty( $_POST['vitacare_crm_backup_confirm'] ) ) {
+				echo '<div class="notice notice-error"><p>' . esc_html__( 'Debes marcar la casilla de confirmación para restaurar un respaldo.', 'vitacare-crm' ) . '</p></div>';
+				return;
+			}
+			$file   = isset( $_POST['vitacare_crm_backup_file'] ) ? sanitize_text_field( wp_unslash( $_POST['vitacare_crm_backup_file'] ) ) : '';
+			$result = Vitacare_Crm_Backup::restore( $file );
+			if ( is_wp_error( $result ) ) {
+				echo '<div class="notice notice-error"><p>' . esc_html( $result->get_error_message() ) . '</p></div>';
+				return;
+			}
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(
+				sprintf(
+					/* translators: %d: number of keys restored */
+					__( '%d claves restauradas desde el respaldo. Revisa Credenciales/Cuentas conectadas para confirmar el estado.', 'vitacare-crm' ),
+					$result['keys']
+				)
+			) . '</p></div>';
+		}
+	}
+
+	private static function render_backup_section(): void {
+		$backups = Vitacare_Crm_Backup::list_backups();
+		?>
+		<h2><?php echo esc_html__( 'Respaldo de integraciones Meta', 'vitacare-crm' ); ?></h2>
+		<p class="description">
+			<?php echo esc_html__( 'Copia los valores actuales de App ID/Secret, tokens, WABA/Phone Number ID y credenciales de Facebook/Instagram a un archivo fuera del directorio público del plugin. No se muestra ni se transmite ningún secreto: la operación ocurre solo en el servidor.', 'vitacare-crm' ); ?>
+		</p>
+		<form method="post" action="" style="margin-bottom:1em">
+			<?php wp_nonce_field( 'vitacare_crm_backup_action', 'vitacare_crm_backup_nonce' ); ?>
+			<button type="submit" name="vitacare_crm_backup_op" value="export" class="button button-secondary">
+				<?php echo esc_html__( 'Generar respaldo ahora', 'vitacare-crm' ); ?>
+			</button>
+		</form>
+		<?php if ( empty( $backups ) ) : ?>
+			<p><em><?php echo esc_html__( 'Todavía no hay respaldos generados.', 'vitacare-crm' ); ?></em></p>
+		<?php else : ?>
+			<table class="widefat striped" style="max-width:640px">
+				<thead><tr>
+					<th><?php echo esc_html__( 'Archivo', 'vitacare-crm' ); ?></th>
+					<th><?php echo esc_html__( 'Fecha (UTC)', 'vitacare-crm' ); ?></th>
+					<th><?php echo esc_html__( 'Tamaño', 'vitacare-crm' ); ?></th>
+					<th><?php echo esc_html__( 'Restaurar', 'vitacare-crm' ); ?></th>
+				</tr></thead>
+				<tbody>
+					<?php foreach ( $backups as $i => $b ) : ?>
+						<tr>
+							<td><code><?php echo esc_html( $b['file'] ); ?></code></td>
+							<td><?php echo esc_html( $b['created_at'] ); ?></td>
+							<td><?php echo esc_html( size_format( $b['bytes'] ) ); ?></td>
+							<td>
+								<form method="post" action="" style="display:flex;gap:.5em;align-items:center;flex-wrap:wrap">
+									<?php wp_nonce_field( 'vitacare_crm_backup_action', 'vitacare_crm_backup_nonce' ); ?>
+									<input type="hidden" name="vitacare_crm_backup_file" value="<?php echo esc_attr( $b['file'] ); ?>" />
+									<label style="font-weight:normal">
+										<input type="checkbox" name="vitacare_crm_backup_confirm" value="1" required />
+										<?php echo esc_html__( 'Confirmo sobrescribir los valores actuales', 'vitacare-crm' ); ?>
+									</label>
+									<button type="submit" name="vitacare_crm_backup_op" value="restore" class="button">
+										<?php echo esc_html__( 'Restaurar este respaldo', 'vitacare-crm' ); ?>
+									</button>
+								</form>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		<?php endif; ?>
 		<?php
 	}
 
