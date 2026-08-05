@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.12.0** |
+| **Versión** | **1.13.0** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,7 +21,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.12.0
+## Qué incluye v1.13.0
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API), incluida media
@@ -39,8 +39,9 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - **Campañas de correo** (Fase 4, D-26): envío masivo (Zoho principal/Gmail secundario) solo a leads con opt-in explícito — el consentimiento se re-verifica en cada envío, no solo al crear la campaña. Despacho por lotes vía cron respetando un cupo diario, pie de baja obligatorio con enlace público sin login
 - **Insights de Meta** (Fase 5, D-27, última fase): impresiones/interacciones de la Página y alcance/visitas de perfil de Instagram, gratis y sin gasto en anuncios, en el dashboard de Reportes. Cuentas ya conectadas antes de este cambio deben reconectar Facebook una vez para autorizar los permisos nuevos
 - **Fix v1.11.1**: panel de contexto de la bandeja (ficha de contacto) más ancho, texto largo ya no se corta de forma agresiva
-- **D-28 Fase 2 (v1.12.0)**: respaldo/restauración manual de credenciales de integraciones Meta (`CRM VITACARE → Credenciales → Respaldo de integraciones Meta`), previo a la reestructuración del módulo de integraciones por canal (WhatsApp/Messenger/Instagram) que sigue en curso por fases
-- Admin: Cuentas, Reportes, Leads, Enlaces, Campañas de correo, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
+- **D-28 Fase 2 (v1.12.0)**: respaldo/restauración manual de credenciales de integraciones Meta (`CRM VITACARE → Credenciales → Respaldo de integraciones Meta`)
+- **D-28 Fase 3 (v1.13.0, cierra el plan de reestructuración de integraciones)**: sección **`CRM VITACARE → Integraciones`** con pestañas por canal (Meta general/WhatsApp/Messenger/Instagram/Gmail/Zoho Mail/Diagnóstico) — muestra estado sin duplicar las páginas de conexión ya existentes. Dentro de WhatsApp: asistente oficial **Embedded Signup** (WhatsApp Business App Coexistence, `featureType: whatsapp_business_app_onboarding`) para conectar el número real sin QR local ni librerías no oficiales — el número sigue funcionando en la app del teléfono mientras el CRM recibe y envía por Cloud API. No conecta nada por sí solo: requiere completar el diálogo oficial de Meta desde `CRM VITACARE → Integraciones → WhatsApp` cuando el administrador esté listo
+- Admin: Cuentas, Reportes, Leads, Enlaces, Campañas de correo, Integraciones (nuevo), WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
 
 ## Instalación
 
@@ -63,6 +64,7 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 | Menú | Uso |
 |---|---|
 | CRM VITACARE → Cuentas conectadas | Estado de canales |
+| Integraciones | Pestañas por canal + asistente WhatsApp Embedded Signup |
 | Reportes | Métricas locales + salud de WhatsApp |
 | Leads | Pipeline de contactos de marketing |
 | Enlaces | Enlaces cortos propios con UTM/clics |
@@ -93,4 +95,4 @@ O copiar el contenido del repo a `wp-content/plugins/vitacare-crm/`.
 
 ## Siguiente trabajo
 
-Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (conectar Facebook/Instagram/Gmail/Zoho en el sitio real, media saliente por Instagram). El plan de 5 fases de métricas/marketing gratuito (D-23 a D-27) está completo.
+Ver sección **Pendiente** en [`ESTADO_CRM.md`](./ESTADO_CRM.md) (conectar Facebook/Instagram/Gmail/Zoho/WhatsApp en el sitio real, media saliente por Instagram). El plan de 5 fases de métricas/marketing gratuito (D-23 a D-27) y el de reestructuración de integraciones Meta (D-28, Fases 1-3) están completos — no hay fases nuevas planeadas de ninguno de los dos.
