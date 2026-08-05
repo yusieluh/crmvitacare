@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.15.0** |
+| **Versión** | **1.15.1** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,7 +21,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.15.0
+## Qué incluye v1.15.1
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API), incluida media
@@ -44,6 +44,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - **D-28 Fase 4 (v1.14.0)**: Credenciales reorganizada en 4 bloques con ancla propia (`#meta`/`#whatsapp`/`#messenger`/`#instagram`) — App ID/Secret ya no están bajo "WhatsApp / Meta", el token de WhatsApp pasó a llamarse "WhatsApp System User Access Token" (constante preferida `VITACARE_CRM_WA_SYSTEM_USER_TOKEN`), y Messenger/Instagram ahora tienen su propio bloque de estado (solo lectura, gestionado por OAuth). Botón "Borrar" independiente por secreto, con confirmación
 - **Fix v1.14.1**: el `hub.challenge` de la verificación GET del webhook Meta se devolvía envuelto en JSON (`"12345"`); ahora se responde como texto plano exacto (`12345`), como exige Meta
 - **D-29 (v1.15.0)**: botón "Ver" en Credenciales para revelar **App Secret** y **Verify Token** en pantalla (a pedido explícito del usuario) — no aplica a WhatsApp System User Token ni TikTok Client Secret
+- **Fix v1.15.1**: "Conectar con Facebook" caía en `/wp-admin/` sin completar el OAuth (`add_query_arg()` no codificaba `redirect_uri`, corrompiendo la URL del diálogo). Corregido con `http_build_query` + RFC3986; el callback ahora siempre vuelve a `admin.php?page=vitacare-crm-facebook&vitacare_oauth=success|error`, nunca a una URL genérica. Nueva prueba de diagnóstico en la página Facebook
 - Admin: Cuentas, Reportes, Leads, Enlaces, Campañas de correo, Integraciones, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
 
 ## Instalación

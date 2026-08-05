@@ -11,10 +11,10 @@
 | **Clone local típico** | `C:\Users\User\Documents\crmvitacare` |
 | **Sitio (raíz — NO TOCAR)** | https://vitacareec.org/ |
 | **URL del CRM** | **https://vitacareec.org/crm** |
-| **Plugin** | `vitacare-crm` **v1.15.0** |
+| **Plugin** | `vitacare-crm` **v1.15.1** |
 | **DB schema** | **v5** (`vitacare_crm_db_version`) — sin cambios de esquema desde D-27; D-26 agregó `wp_vitacare_crm_email_campaigns` + `wp_vitacare_crm_campaign_recipients`; D-25 agregó `wp_vitacare_crm_link_clicks`; D-24 agregó `wp_vitacare_crm_leads` + columna `lead_id` en conversations; sin cambios de esquema en C-3/PR-6/PR-6b/D-19/D-20/C-6/D-22/D-23 |
 | **Última actualización docs** | 2026-08-05 |
-| **Último commit de referencia** | Feature v1.15.0: botón "Ver" para revelar App Secret y Verify Token en Credenciales (D-29) (este commit) |
+| **Último commit de referencia** | Fix v1.15.1: OAuth de Facebook/Messenger caía a /wp-admin/ sin code/state/error — `add_query_arg()` no codificaba `redirect_uri` (este commit) |
 
 ---
 
@@ -372,6 +372,7 @@ cd C:\Users\User\Documents\crmvitacare && git pull origin main
 | 2026-08-05 | **D-28 Fase 4 v1.14.0** (corrección puntual pedida tras revisar Fase 3 en vivo): Credenciales reorganizada en 4 bloques con ancla propia (Meta/WhatsApp/Messenger/Instagram); nuevas opciones `wa_business_id`/`wa_embedded_config_id`/`wa_phone`; constante preferida `VITACARE_CRM_WA_SYSTEM_USER_TOKEN` (con fallback no destructivo a la antigua `VITACARE_CRM_META_ACCESS_TOKEN`); constantes opcionales para Messenger/Instagram en `Vitacare_Crm_Facebook_Oauth` sin tocar su OAuth; botón "Borrar" por secreto con confirmación; flags Messenger/Instagram/Correo ya no dicen "(futuro)". **Reabre y cierra D-28 en Fase 4 — no hay Fase 5 planeada** | `ac05a98` |
 | 2026-08-05 | **Fix v1.14.1**: `Vitacare_Crm_Webhook::handle_get()` respondía el `hub.challenge` envuelto en JSON (`"12345"`) porque `WP_REST_Response` siempre pasa por el serializador JSON del REST server sin importar el header `Content-Type`. Ahora, solo en la rama de éxito, escribe la respuesta directo con `status_header()`/`header()`/`echo`/`exit`, devolviendo el challenge como texto plano exacto (`12345`, sin comillas). La rama de error (403, token inválido) y toda la lógica POST/firma `X-Hub-Signature-256` no se tocaron — confirmado en producción que `invalid_verify_token` sigue devolviendo 403 JSON igual que antes | `2d090b9` |
 | 2026-08-05 | **D-29 v1.15.0**: botón "Ver" para revelar App Secret y Verify Token en Credenciales — excepción explícita y confirmada por el usuario a la regla de "nunca mostrar secretos completos". `ajax_reveal_secret()` gateado por nonce + `manage_options` + lista blanca, con auditoría en el logger (usuario + campo, nunca el valor). No aplica a WhatsApp System User Token ni TikTok Client Secret | `8d5cc92` |
+| 2026-08-05 | **Fix v1.15.1**: OAuth de Facebook/Messenger redirigía a `/wp-admin/` sin `code`/`state`/`error` al pulsar "Conectar con Facebook". Causa raíz: `add_query_arg()` de WordPress no codifica los valores del querystring, y `redirect_uri` (que trae `?`/`=`) corrompía el querystring externo del diálogo OAuth y del intercambio de token. Nuevo helper `build_url()` (http_build_query + RFC3986) usado en el diálogo de autorización y en ambos intercambios de token; state ahora ligado a un transient por usuario admin (antes había una clave global duplicada sin usar); el callback redirige siempre exactamente a `admin.php?page=vitacare-crm-facebook` con `&vitacare_oauth=success|error`, nunca a `admin_url()` genérico; diagnóstico no sensible en el logger en cada paso; nueva prueba administrativa en la página Facebook (URI generada, callback registrado, state pendiente, estado de la última autorización) | `0923890` |
 
 ---
 
