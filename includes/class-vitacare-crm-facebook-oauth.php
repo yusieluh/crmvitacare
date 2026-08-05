@@ -15,19 +15,25 @@ final class Vitacare_Crm_Facebook_Oauth {
 	public const OPTION_PAGES_CACHE  = 'vitacare_crm_fb_pages_cache';
 	public const TRANSIENT_STATE     = 'vitacare_crm_fb_oauth_state';
 
+	/** ID de la Configuration de Facebook Login for Business (NO es el App ID). */
+	public const OPTION_LOGIN_CONFIG_ID = 'vitacare_crm_fb_login_config_id';
+
 	/** C-3: cuenta profesional de Instagram vinculada a la Página seleccionada. */
 	public const OPTION_IG_ID       = 'vitacare_crm_ig_id';
 	public const OPTION_IG_USERNAME = 'vitacare_crm_ig_username';
 
 	/**
-	 * Scopes para listar páginas, mensajería Messenger e Instagram (la cuenta IG
-	 * profesional se administra a través del mismo token de Página).
-	 * D-27 Fase 5: read_insights/instagram_manage_insights agregados para leer
-	 * alcance/impresiones gratis (sin gasto en anuncios) en Reportes. Cuentas ya
-	 * conectadas antes de este cambio deben pulsar «Reconectar / cambiar cuenta»
-	 * para obtener el nuevo permiso -- Meta no lo agrega solo.
+	 * Scopes mínimos para conectar Messenger, acotados a lo que la app
+	 * necesita hoy (corrección puntual 2026-08-05). Antes incluía
+	 * pages_read_engagement + los scopes de Instagram/Insights
+	 * (instagram_basic, instagram_manage_messages, read_insights,
+	 * instagram_manage_insights de D-27 Fase 5) -- se retiraron a pedido
+	 * explícito del usuario para no pedir permisos no necesarios todavía en
+	 * el diálogo de Facebook Login for Business (config_id). Deben
+	 * reincorporarse aquí cuando se priorice conectar Instagram/Insights de
+	 * nuevo, verificando que el flujo de Login for Business los soporte.
 	 */
-	public const SCOPES = 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,business_management,instagram_basic,instagram_manage_messages,read_insights,instagram_manage_insights';
+	public const SCOPES = 'pages_show_list,pages_manage_metadata,pages_messaging,business_management';
 
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'register_menu' ), 25 );
@@ -47,6 +53,17 @@ final class Vitacare_Crm_Facebook_Oauth {
 
 	public static function redirect_uri(): string {
 		return admin_url( 'admin.php?page=vitacare-crm-facebook' );
+	}
+
+	/**
+	 * Configuration ID de Facebook Login for Business (no confundir con App
+	 * ID: son dos identificadores distintos de Meta).
+	 */
+	public static function login_config_id(): string {
+		if ( defined( 'VITACARE_CRM_FB_LOGIN_CONFIG_ID' ) && (string) VITACARE_CRM_FB_LOGIN_CONFIG_ID !== '' ) {
+			return (string) VITACARE_CRM_FB_LOGIN_CONFIG_ID;
+		}
+		return (string) get_option( self::OPTION_LOGIN_CONFIG_ID, '' );
 	}
 
 	public static function is_connected(): bool {
@@ -371,24 +388,36 @@ final class Vitacare_Crm_Facebook_Oauth {
 		set_transient( self::state_transient_key(), $state, 600 );
 
 		$redirect_uri = self::redirect_uri();
+		$config_id    = self::login_config_id();
+		$dialog_host  = 'www.facebook.com';
 		$version      = Vitacare_Crm_Settings::graph_version();
-		$url          = self::build_url(
-			'https://www.facebook.com/' . rawurlencode( $version ) . '/dialog/oauth',
-			array(
-				'client_id'     => $app_id,
-				'redirect_uri'  => $redirect_uri,
-				'state'         => $state,
-				'scope'         => self::SCOPES,
-				'response_type' => 'code',
-			)
+
+		$args = array(
+			'client_id'     => $app_id,
+			'redirect_uri'  => $redirect_uri,
+			'state'         => $state,
+			'scope'         => self::SCOPES,
+			'response_type' => 'code',
 		);
+		// Facebook Login for Business: config_id manda los permisos de la
+		// Configuration creada en Meta -- nunca se mezcla con el App ID (van
+		// como parámetros separados, uno no reemplaza al otro).
+		if ( $config_id !== '' ) {
+			$args['config_id'] = $config_id;
+		}
+
+		$url = self::build_url( 'https://' . $dialog_host . '/' . rawurlencode( $version ) . '/dialog/oauth', $args );
 
 		update_option( 'vitacare_crm_fb_oauth_last_status', 'started', false );
 		Vitacare_Crm_Logger::info(
 			'fb_oauth_started',
 			array(
-				'redirect_uri' => $redirect_uri,
-				'user_id'      => get_current_user_id(),
+				'redirect_uri'      => $redirect_uri,
+				'dialog_host'       => $dialog_host,
+				'config_id'         => $config_id,
+				'config_id_present' => $config_id !== '',
+				'scopes'            => self::SCOPES,
+				'user_id'           => get_current_user_id(),
 			)
 		);
 
@@ -663,6 +692,22 @@ final class Vitacare_Crm_Facebook_Oauth {
 				<strong><?php echo esc_html__( 'Estado de la última autorización:', 'vitacare-crm' ); ?></strong>
 				<?php echo esc_html( $status_labels[ $last_status ] ?? $last_status ); ?>
 			</p>
+			<p style="margin:.25em 0">
+				<strong><?php echo esc_html__( 'Configuration ID (Facebook Login for Business):', 'vitacare-crm' ); ?></strong>
+				<?php echo self::login_config_id() !== '' ? '<code>' . esc_html( self::login_config_id() ) . '</code>' : esc_html__( 'No configurado', 'vitacare-crm' ); ?>
+			</p>
+			<p style="margin:.25em 0">
+				<strong><?php echo esc_html__( 'config_id incluido en el diálogo:', 'vitacare-crm' ); ?></strong>
+				<?php echo self::login_config_id() !== '' ? esc_html__( 'Sí', 'vitacare-crm' ) : esc_html__( 'No (falta configurarlo arriba)', 'vitacare-crm' ); ?>
+			</p>
+			<p style="margin:.25em 0">
+				<strong><?php echo esc_html__( 'Host del diálogo OAuth:', 'vitacare-crm' ); ?></strong>
+				<code>www.facebook.com</code>
+			</p>
+			<p style="margin:.25em 0">
+				<strong><?php echo esc_html__( 'Scopes solicitados:', 'vitacare-crm' ); ?></strong>
+				<code style="word-break:break-all"><?php echo esc_html( self::SCOPES ); ?></code>
+			</p>
 		</div>
 		<?php
 	}
@@ -713,6 +758,15 @@ final class Vitacare_Crm_Facebook_Oauth {
 				} else {
 					wp_safe_redirect( $url );
 					exit;
+				}
+			} elseif ( $action === 'save_login_config_id' ) {
+				if ( defined( 'VITACARE_CRM_FB_LOGIN_CONFIG_ID' ) && (string) VITACARE_CRM_FB_LOGIN_CONFIG_ID !== '' ) {
+					echo '<div class="notice notice-error"><p>' . esc_html__( 'El Configuration ID está definido en wp-config.php; no se puede sobrescribir desde aquí.', 'vitacare-crm' ) . '</p></div>';
+				} else {
+					// phpcs:ignore WordPress.Security.NonceVerification.Missing
+					$cfg = isset( $_POST['login_config_id'] ) ? sanitize_text_field( wp_unslash( $_POST['login_config_id'] ) ) : '';
+					update_option( self::OPTION_LOGIN_CONFIG_ID, $cfg, false );
+					echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Configuration ID guardado.', 'vitacare-crm' ) . '</p></div>';
 				}
 			}
 		}
@@ -773,6 +827,20 @@ final class Vitacare_Crm_Facebook_Oauth {
 					?>
 				</li>
 			</ol>
+
+			<h2><?php echo esc_html__( 'Facebook Login for Business — Configuration ID', 'vitacare-crm' ); ?></h2>
+			<p class="description"><?php echo esc_html__( 'ID de la Configuration creada en Meta for Developers → tu App → Facebook Login for Business → Configuraciones. No es el App ID ni es un secreto.', 'vitacare-crm' ); ?></p>
+			<?php $login_config_id = self::login_config_id(); ?>
+			<?php if ( defined( 'VITACARE_CRM_FB_LOGIN_CONFIG_ID' ) && (string) VITACARE_CRM_FB_LOGIN_CONFIG_ID !== '' ) : ?>
+				<p><code><?php echo esc_html( $login_config_id ); ?></code> <span class="description"><?php echo esc_html__( '(definido en wp-config.php)', 'vitacare-crm' ); ?></span></p>
+			<?php else : ?>
+				<form method="post" style="display:flex;gap:.5em;align-items:center;flex-wrap:wrap">
+					<?php wp_nonce_field( 'vitacare_crm_fb', 'vitacare_crm_fb_nonce' ); ?>
+					<input type="hidden" name="fb_action" value="save_login_config_id" />
+					<input type="text" name="login_config_id" class="regular-text" value="<?php echo esc_attr( $login_config_id ); ?>" placeholder="ej. 1701314117752790" />
+					<?php submit_button( __( 'Guardar', 'vitacare-crm' ), 'secondary', 'submit', false ); ?>
+				</form>
+			<?php endif; ?>
 
 			<?php self::render_oauth_diagnostics( $redirect ); ?>
 
