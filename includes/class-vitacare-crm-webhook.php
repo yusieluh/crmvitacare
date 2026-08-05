@@ -28,7 +28,9 @@ final class Vitacare_Crm_Webhook {
 
 	/**
 	 * @param WP_REST_Request $request Request.
-	 * @return WP_REST_Response
+	 * @return WP_REST_Response En caso de error (mode/token inválido). En éxito,
+	 *                          escribe texto plano y termina la ejecución (exit)
+	 *                          porque Meta exige el challenge sin envoltorio JSON.
 	 */
 	public static function handle_get( WP_REST_Request $request ) {
 		// Un solo endpoint verify para WA + Page (Messenger/IG).
@@ -57,9 +59,14 @@ final class Vitacare_Crm_Webhook {
 			return new WP_REST_Response( array( 'error' => 'invalid_verify_token' ), 403 );
 		}
 
-		$response = new WP_REST_Response( $challenge, 200 );
-		$response->header( 'Content-Type', 'text/plain; charset=utf-8' );
-		return $response;
+		// Meta exige el challenge como texto plano exacto (sin comillas ni
+		// envoltorio JSON). WP_REST_Response siempre pasa por el serializador
+		// JSON del REST server sin importar el header Content-Type, así que
+		// hay que salir del pipeline REST y escribir la respuesta a mano.
+		status_header( 200 );
+		header( 'Content-Type: text/plain; charset=UTF-8' );
+		echo $challenge; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Meta exige el valor exacto, sin escapar/envolver.
+		exit;
 	}
 
 	/**
