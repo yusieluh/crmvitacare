@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.15.3** |
+| **Versión** | **1.15.4** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,7 +21,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.15.3
+## Qué incluye v1.15.4
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API), incluida media
@@ -47,6 +47,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - **Fix v1.15.1**: "Conectar con Facebook" caía en `/wp-admin/` sin completar el OAuth (`add_query_arg()` no codificaba `redirect_uri`, corrompiendo la URL del diálogo). Corregido con `http_build_query` + RFC3986; el callback ahora siempre vuelve a `admin.php?page=vitacare-crm-facebook&vitacare_oauth=success|error`, nunca a una URL genérica. Nueva prueba de diagnóstico en la página Facebook
 - **Fix v1.15.2**: la app usa **Facebook Login for Business** con una Configuration ya creada en Meta, pero el diálogo OAuth nunca enviaba `config_id` — Meta dejaba avanzar la autorización pero volvía a `/wp-admin/` sin `code`/`state`. Agregado `config_id` (campo propio en la página Facebook, separado del App ID) y scopes de Messenger acotados a los 4 que se necesitan hoy
 - **Fix v1.15.3 — causa raíz real**: auditoría forense (sin conjeturas) demostró que "Conectar con Facebook" caía en `/wp-admin/` porque `wp_safe_redirect()` de WordPress rechaza por defecto cualquier host externo no declarado en `allowed_redirect_hosts`, y `www.facebook.com` nunca estuvo ahí — así que el navegador nunca llegaba a Meta, ni con la codificación RFC3986 (v1.15.1) ni con el `config_id` (v1.15.2) corregidos. Agregado el filtro con únicamente `www.facebook.com` (no `graph.facebook.com`: los intercambios con Graph API son server-side, no por redirección del navegador). Nueva validación estricta de HTTPS/host/ruta antes de devolver la URL del diálogo, y botón admin "Mostrar URL OAuth generada" (sin secretos, `state` parcialmente oculto en la vista)
+- **D-31 (v1.15.4) — diagnóstico de ingesta de Messenger**: con OAuth, Página, webhook y suscripción ya confirmados funcionando, la bandeja seguía sin recibir mensajes de Messenger. La auditoría de código de `handle_post()`/`Vitacare_Crm_Channel_Messenger` no encontró un bug de persistencia demostrable por inspección estática; se agregó en su lugar un registro no sensible de los últimos 20 eventos del webhook (IDs enmascarados, nunca texto/tokens/secretos) visible en `Integraciones → Diagnóstico`, más reconocimiento explícito de `postback`/Handover Protocol/muestras de prueba de Meta que antes se descartaban sin etiqueta. Pendiente: generar un evento real y revisar esa tabla para localizar el punto exacto de falla con datos de producción
 - Admin: Cuentas, Reportes, Leads, Enlaces, Campañas de correo, Integraciones, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
 
 ## Instalación

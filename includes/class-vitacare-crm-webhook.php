@@ -74,33 +74,78 @@ final class Vitacare_Crm_Webhook {
 	 * @return WP_REST_Response
 	 */
 	public static function handle_post( WP_REST_Request $request ): WP_REST_Response {
+		// D-31: diagnóstico no sensible de cada POST recibido -- ver
+		// includes/class-vitacare-crm-webhook-diagnostics.php. Nunca guarda
+		// texto de mensaje, tokens, App Secret, firma completa ni IDs
+		// completos; se registra en cada punto de retorno de este método.
+		$diag = array(
+			'content_type'     => (string) $request->get_header( 'content-type' ),
+			'body_size'        => 0,
+			'has_signature'    => false,
+			'signature_valid'  => false,
+			'object'           => '',
+			'entry_count'      => 0,
+			'messaging_count'  => 0,
+			'event_type'       => 'unknown',
+			'page_id_masked'   => '',
+			'sender_id_masked' => '',
+			'contact_created'      => false,
+			'conversation_created' => false,
+			'message_created'      => false,
+			'skip_reason'      => null,
+			'http_status'      => 0,
+		);
+
 		if ( ! Vitacare_Crm_Settings::flag( 'whatsapp' )
 			&& ! Vitacare_Crm_Settings::flag( 'facebook' )
 			&& ! Vitacare_Crm_Settings::flag( 'instagram' )
 		) {
+			$diag['skip_reason'] = 'channels_disabled';
+			$diag['http_status'] = 403;
+			Vitacare_Crm_Webhook_Diagnostics::record( $diag );
 			return new WP_REST_Response( array( 'error' => 'channels_disabled' ), 403 );
 		}
 
 		$secret = Vitacare_Crm_Settings::get( 'app_secret' );
 		if ( $secret === '' ) {
+			$diag['skip_reason'] = 'app_secret_missing';
+			$diag['http_status'] = 403;
+			Vitacare_Crm_Webhook_Diagnostics::record( $diag );
 			return new WP_REST_Response( array( 'error' => 'app_secret_missing' ), 403 );
 		}
 
-		$raw = $request->get_body();
+		$raw                = $request->get_body();
+		$diag['body_size']  = is_string( $raw ) ? strlen( $raw ) : 0;
 		if ( $raw === '' || null === $raw ) {
+			$diag['skip_reason'] = 'empty_body';
+			$diag['http_status'] = 403;
+			Vitacare_Crm_Webhook_Diagnostics::record( $diag );
 			return new WP_REST_Response( array( 'error' => 'empty_body' ), 403 );
 		}
 
-		$sig = (string) $request->get_header( 'x-hub-signature-256' );
-		if ( $sig === '' || ! self::valid_signature( $raw, $sig, $secret ) ) {
+		$sig                    = (string) $request->get_header( 'x-hub-signature-256' );
+		$diag['has_signature']  = $sig !== '';
+		$diag['signature_valid'] = $sig !== '' && self::valid_signature( $raw, $sig, $secret );
+		if ( ! $diag['signature_valid'] ) {
+			$diag['skip_reason'] = 'signature_invalid';
+			$diag['http_status'] = 403;
+			Vitacare_Crm_Webhook_Diagnostics::record( $diag );
 			return new WP_REST_Response( array( 'error' => 'signature_invalid' ), 403 );
 		}
 
 		$payload = json_decode( $raw, true );
 		if ( ! is_array( $payload ) ) {
 			Vitacare_Crm_Logger::debug( 'webhook_invalid_json' );
+			$diag['skip_reason'] = 'invalid_json';
+			$diag['http_status'] = 200;
+			Vitacare_Crm_Webhook_Diagnostics::record( $diag );
 			return new WP_REST_Response( array( 'ok' => true, 'skipped' => 'invalid_json' ), 200 );
 		}
+
+		$object              = isset( $payload['object'] ) ? (string) $payload['object'] : '';
+		$diag['object']      = $object !== '' ? $object : '(vacío)';
+		$entries             = isset( $payload['entry'] ) && is_array( $payload['entry'] ) ? $payload['entry'] : array();
+		$diag['entry_count'] = count( $entries );
 
 		try {
 			$stats = array(
@@ -109,16 +154,16 @@ final class Vitacare_Crm_Webhook {
 				'skipped'  => 0,
 			);
 
-			$object = isset( $payload['object'] ) ? (string) $payload['object'] : '';
-
 			if ( $object === 'whatsapp_business_account' || $object === '' ) {
 				if ( Vitacare_Crm_Settings::flag( 'whatsapp' ) ) {
 					$wa = Vitacare_Crm_Channel_Whatsapp::handle_payload( $payload );
 					$stats['messages'] += $wa['messages'];
 					$stats['statuses'] += $wa['statuses'];
 					$stats['skipped']  += $wa['skipped'];
+					$diag['skip_reason'] = 'whatsapp_channel (no auditado en esta tarea)';
 				} else {
 					++$stats['skipped'];
+					$diag['skip_reason'] = 'whatsapp_flag_off';
 				}
 			}
 
@@ -128,8 +173,12 @@ final class Vitacare_Crm_Webhook {
 					$stats['messages'] += $fb['messages'];
 					$stats['statuses'] += $fb['statuses'];
 					$stats['skipped']  += $fb['skipped'];
+					if ( isset( $fb['diag'] ) && is_array( $fb['diag'] ) ) {
+						$diag = array_merge( $diag, $fb['diag'] );
+					}
 				} else {
 					++$stats['skipped'];
+					$diag['skip_reason'] = 'facebook_flag_off';
 				}
 			}
 
@@ -139,14 +188,20 @@ final class Vitacare_Crm_Webhook {
 					$stats['messages'] += $ig['messages'];
 					$stats['statuses'] += $ig['statuses'];
 					$stats['skipped']  += $ig['skipped'];
+					$diag['skip_reason'] = 'instagram_channel (no auditado en esta tarea)';
 				} else {
 					++$stats['skipped'];
+					$diag['skip_reason'] = 'instagram_flag_off';
 				}
 			}
 
 			if ( $object !== '' && $object !== 'whatsapp_business_account' && $object !== 'page' && $object !== 'instagram' ) {
 				++$stats['skipped'];
+				$diag['skip_reason'] = 'object_unrecognized';
 			}
+
+			$diag['http_status'] = 200;
+			Vitacare_Crm_Webhook_Diagnostics::record( $diag );
 
 			return new WP_REST_Response(
 				array(
@@ -162,6 +217,9 @@ final class Vitacare_Crm_Webhook {
 					'error' => $e->getMessage(),
 				)
 			);
+			$diag['skip_reason'] = 'exception: ' . $e->getMessage();
+			$diag['http_status'] = 500;
+			Vitacare_Crm_Webhook_Diagnostics::record( $diag );
 			return new WP_REST_Response( array( 'error' => 'persistence_failed' ), 500 );
 		}
 	}

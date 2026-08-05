@@ -46,6 +46,13 @@ final class Vitacare_Crm_Integrations_Page {
 			$tab = 'meta';
 		}
 
+		if ( isset( $_POST['vitacare_crm_webhook_diag_nonce'] )
+			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['vitacare_crm_webhook_diag_nonce'] ) ), 'vitacare_crm_webhook_diag_clear' )
+		) {
+			Vitacare_Crm_Webhook_Diagnostics::clear();
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Registro de diagnóstico del webhook limpiado.', 'vitacare-crm' ) . '</p></div>';
+		}
+
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html__( 'CRM VITACARE — Integraciones', 'vitacare-crm' ); ?></h1>
@@ -241,6 +248,71 @@ final class Vitacare_Crm_Integrations_Page {
 		self::status_row( __( 'Plugin version', 'vitacare-crm' ), true, VITACARE_CRM_VERSION );
 		self::status_row( __( 'Respaldo de integraciones más reciente', 'vitacare-crm' ), ! empty( Vitacare_Crm_Backup::list_backups() ), ( Vitacare_Crm_Backup::list_backups()[0]['created_at'] ?? '' ) );
 		?>
+
+		<h3><?php echo esc_html__( 'Últimos eventos del webhook (D-31, no sensible)', 'vitacare-crm' ); ?></h3>
+		<p class="description">
+			<?php
+			echo esc_html__(
+				'Últimos 20 POST recibidos en el webhook Meta. Nunca guarda texto de mensajes, tokens, App Secret, firma completa ni IDs completos (Page ID/PSID enmascarados).',
+				'vitacare-crm'
+			);
+			?>
+		</p>
+		<?php self::render_webhook_diagnostics_table(); ?>
+		<form method="post" style="margin-top:.5em">
+			<?php wp_nonce_field( 'vitacare_crm_webhook_diag_clear', 'vitacare_crm_webhook_diag_nonce' ); ?>
+			<?php submit_button( __( 'Limpiar registro', 'vitacare-crm' ), 'secondary', 'submit', false ); ?>
+		</form>
+		<?php
+	}
+
+	private static function render_webhook_diagnostics_table(): void {
+		$events = class_exists( 'Vitacare_Crm_Webhook_Diagnostics' ) ? Vitacare_Crm_Webhook_Diagnostics::all() : array();
+		if ( empty( $events ) ) {
+			echo '<p><em>' . esc_html__( 'Todavía no se ha recibido ningún POST en el webhook desde que existe este registro.', 'vitacare-crm' ) . '</em></p>';
+			return;
+		}
+		?>
+		<div style="overflow-x:auto">
+			<table class="widefat striped" style="min-width:1100px">
+				<thead>
+					<tr>
+						<th><?php echo esc_html__( 'Fecha/hora', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'HTTP', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Object', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Firma', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Entries', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Eventos', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Tipo detectado', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Page ID', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Sender ID', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Contacto', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Conversación', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Mensaje', 'vitacare-crm' ); ?></th>
+						<th><?php echo esc_html__( 'Motivo si se ignoró', 'vitacare-crm' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $events as $e ) : ?>
+						<tr>
+							<td><?php echo esc_html( (string) ( $e['at'] ?? '' ) ); ?></td>
+							<td><?php echo esc_html( (string) ( $e['http_status'] ?? '' ) ); ?></td>
+							<td><?php echo esc_html( (string) ( $e['object'] ?? '' ) ); ?></td>
+							<td><?php echo ! empty( $e['has_signature'] ) ? ( ! empty( $e['signature_valid'] ) ? esc_html__( 'válida', 'vitacare-crm' ) : esc_html__( 'inválida', 'vitacare-crm' ) ) : esc_html__( 'ausente', 'vitacare-crm' ); ?></td>
+							<td><?php echo esc_html( (string) ( $e['entry_count'] ?? 0 ) ); ?></td>
+							<td><?php echo esc_html( (string) ( $e['messaging_count'] ?? 0 ) ); ?></td>
+							<td><?php echo esc_html( (string) ( $e['event_type'] ?? '' ) ); ?></td>
+							<td><code><?php echo esc_html( (string) ( $e['page_id_masked'] ?? '' ) ); ?></code></td>
+							<td><code><?php echo esc_html( (string) ( $e['sender_id_masked'] ?? '' ) ); ?></code></td>
+							<td><?php echo ! empty( $e['contact_created'] ) ? esc_html__( 'sí (nuevo)', 'vitacare-crm' ) : esc_html__( 'no', 'vitacare-crm' ); ?></td>
+							<td><?php echo ! empty( $e['conversation_created'] ) ? esc_html__( 'sí (nueva)', 'vitacare-crm' ) : esc_html__( 'no', 'vitacare-crm' ); ?></td>
+							<td><?php echo ! empty( $e['message_created'] ) ? esc_html__( 'sí', 'vitacare-crm' ) : esc_html__( 'no', 'vitacare-crm' ); ?></td>
+							<td><?php echo esc_html( (string) ( $e['skip_reason'] ?? '—' ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
 		<?php
 	}
 }

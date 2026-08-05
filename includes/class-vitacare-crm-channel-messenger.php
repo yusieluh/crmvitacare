@@ -8,8 +8,37 @@ defined( 'ABSPATH' ) || exit;
 final class Vitacare_Crm_Channel_Messenger {
 
 	/**
+	 * Clasifica el tipo de evento de messaging sin tocar la base de datos
+	 * (función pura, testeable sin bootstrap de WordPress -- ver
+	 * tests/test-messenger-webhook-classification.php).
+	 *
+	 * @param array<string, mixed> $event
+	 */
+	public static function classify_event( array $event ): string {
+		if ( isset( $event['delivery'] ) && is_array( $event['delivery'] ) ) {
+			return 'delivery';
+		}
+		if ( isset( $event['read'] ) ) {
+			return 'read';
+		}
+		if ( isset( $event['postback'] ) && is_array( $event['postback'] ) ) {
+			return 'postback';
+		}
+		if ( isset( $event['pass_thread_control'] ) && is_array( $event['pass_thread_control'] ) ) {
+			return 'pass_thread_control';
+		}
+		if ( isset( $event['take_thread_control'] ) && is_array( $event['take_thread_control'] ) ) {
+			return 'take_thread_control';
+		}
+		if ( isset( $event['message'] ) && is_array( $event['message'] ) ) {
+			return ! empty( $event['message']['is_echo'] ) ? 'echo' : 'message';
+		}
+		return 'unknown';
+	}
+
+	/**
 	 * @param array<string, mixed> $payload
-	 * @return array{messages: int, statuses: int, skipped: int}
+	 * @return array{messages: int, statuses: int, skipped: int, diag: array<string, mixed>}
 	 */
 	public static function handle_payload( array $payload ): array {
 		$stats = array(
@@ -17,10 +46,22 @@ final class Vitacare_Crm_Channel_Messenger {
 			'statuses' => 0,
 			'skipped'  => 0,
 		);
+		$diag = array(
+			'messaging_count'      => 0,
+			'event_type'           => 'unknown',
+			'page_id_masked'       => '',
+			'sender_id_masked'     => '',
+			'contact_created'      => false,
+			'conversation_created' => false,
+			'message_created'      => false,
+			'skip_reason'          => null,
+		);
 
 		$object = isset( $payload['object'] ) ? (string) $payload['object'] : '';
 		if ( $object !== 'page' ) {
+			$diag['skip_reason'] = 'object_not_page';
 			++$stats['skipped'];
+			$stats['diag'] = $diag;
 			return $stats;
 		}
 
@@ -29,25 +70,58 @@ final class Vitacare_Crm_Channel_Messenger {
 			: '';
 
 		$entries = isset( $payload['entry'] ) && is_array( $payload['entry'] ) ? $payload['entry'] : array();
+		if ( empty( $entries ) ) {
+			$diag['skip_reason'] = 'no_entries';
+		}
+
 		foreach ( $entries as $entry ) {
 			if ( ! is_array( $entry ) ) {
+				$diag['skip_reason'] = 'entry_not_array';
+				++$stats['skipped'];
 				continue;
 			}
-			$page_id = (string) ( $entry['id'] ?? '' );
+			$page_id                 = (string) ( $entry['id'] ?? '' );
+			$diag['page_id_masked']  = Vitacare_Crm_Webhook_Diagnostics::mask_id( $page_id );
+
 			// Si hay Página conectada en CRM, ignorar eventos de otras páginas.
+			// Meta también envía el ID de muestra de su botón "Probar" (por
+			// ejemplo "0"), que naturalmente no coincide con la Página real
+			// conectada y cae aquí -- se etiqueta como probable muestra en vez
+			// de confundirlo con un evento real descartado por error.
 			if ( $configured_page !== '' && $page_id !== '' && $page_id !== $configured_page ) {
+				$diag['event_type']  = 'test_sample';
+				$diag['skip_reason'] = 'page_id_mismatch (no es la Página conectada; probablemente una prueba de Meta u otra Página)';
 				++$stats['skipped'];
 				continue;
 			}
 
 			$messaging = isset( $entry['messaging'] ) && is_array( $entry['messaging'] ) ? $entry['messaging'] : array();
+
+			// Handover Protocol: cuando esta app no es la receptora activa del
+			// hilo, Meta envía los eventos bajo entry[].standby[] en vez de
+			// entry[].messaging[]. Se reconoce y se registra, no se persiste
+			// (no somos el receptor principal en ese momento).
+			if ( empty( $messaging ) && isset( $entry['standby'] ) && is_array( $entry['standby'] ) ) {
+				$diag['event_type']       = 'standby';
+				$diag['skip_reason']      = 'standby_channel (Handover Protocol; esta app no es el receptor principal ahora mismo)';
+				$diag['messaging_count'] += count( $entry['standby'] );
+				++$stats['skipped'];
+				continue;
+			}
+
 			foreach ( $messaging as $event ) {
+				++$diag['messaging_count'];
 				if ( ! is_array( $event ) ) {
+					$diag['skip_reason'] = 'invalid_event_shape';
 					++$stats['skipped'];
 					continue;
 				}
-				if ( self::handle_messaging_event( $event, $page_id ) ) {
-					// message vs delivery/read.
+
+				$diag['event_type']       = self::classify_event( $event );
+				$diag['sender_id_masked'] = Vitacare_Crm_Webhook_Diagnostics::mask_id( (string) ( $event['sender']['id'] ?? '' ) );
+
+				if ( self::handle_messaging_event( $event, $page_id, $diag ) ) {
+					// message vs delivery/read/postback/echo.
 					if ( isset( $event['message'] ) ) {
 						++$stats['messages'];
 					} else {
@@ -59,23 +133,42 @@ final class Vitacare_Crm_Channel_Messenger {
 			}
 		}
 
+		$stats['diag'] = $diag;
 		return $stats;
 	}
 
 	/**
 	 * @param array<string, mixed> $event
+	 * @param array<string, mixed> $diag Por referencia: se completa con el
+	 *                                    resultado no sensible del evento
+	 *                                    (creado sí/no, motivo de descarte).
 	 */
-	private static function handle_messaging_event( array $event, string $page_id ): bool {
+	private static function handle_messaging_event( array $event, string $page_id, array &$diag ): bool {
 		// Entregas / lecturas (opcional, por mid).
 		if ( isset( $event['delivery'] ) && is_array( $event['delivery'] ) ) {
-			return self::handle_delivery( $event['delivery'] );
+			$ok                  = self::handle_delivery( $event['delivery'] );
+			$diag['skip_reason'] = $ok ? null : 'delivery_no_matching_mid';
+			return $ok;
 		}
 		if ( isset( $event['read'] ) ) {
 			// Watermark sin mid concreto — skip sin error.
+			$diag['skip_reason'] = 'read_watermark_no_mid';
+			return false;
+		}
+		if ( isset( $event['postback'] ) && is_array( $event['postback'] ) ) {
+			// Reconocido, no persistido: no hay botones/postbacks configurados hoy.
+			$diag['skip_reason'] = 'postback_recognized_not_persisted';
+			return false;
+		}
+		if ( ( isset( $event['pass_thread_control'] ) && is_array( $event['pass_thread_control'] ) )
+			|| ( isset( $event['take_thread_control'] ) && is_array( $event['take_thread_control'] ) )
+		) {
+			$diag['skip_reason'] = 'handover_protocol_recognized_not_persisted';
 			return false;
 		}
 
 		if ( ! isset( $event['message'] ) || ! is_array( $event['message'] ) ) {
+			$diag['skip_reason'] = 'unknown_event_shape';
 			return false;
 		}
 
@@ -83,10 +176,12 @@ final class Vitacare_Crm_Channel_Messenger {
 		// Ignorar echos de edición etc. sin mid.
 		$mid = (string) ( $message['mid'] ?? '' );
 		if ( $mid === '' ) {
+			$diag['skip_reason'] = 'message_without_mid';
 			return false;
 		}
 
 		if ( Vitacare_Crm_Messages_Repo::find_by_external_id( $mid ) ) {
+			$diag['skip_reason'] = 'duplicate_mid_deduped';
 			return true; // dedupe
 		}
 
@@ -108,6 +203,7 @@ final class Vitacare_Crm_Channel_Messenger {
 		if ( $contact_id === '' || $contact_id === $page_id && ! $is_echo ) {
 			// Evitar hilos raros.
 			if ( $contact_id === '' ) {
+				$diag['skip_reason'] = 'contact_id_empty';
 				return false;
 			}
 		}
@@ -164,6 +260,12 @@ final class Vitacare_Crm_Channel_Messenger {
 		$contact_name = null;
 		// Opcional: no bloquear webhook con Graph extra; nombre se puede enriquecer luego.
 
+		// Solo para diagnóstico: si ya existía un hilo para este contacto,
+		// no se cuenta como contacto/conversación nueva. No cambia el
+		// comportamiento de upsert_contact() (misma llamada de siempre).
+		$diag['contact_created']      = ! self::conversation_exists_for_diag( $contact_id );
+		$diag['conversation_created'] = $diag['contact_created'];
+
 		$conv_id = Vitacare_Crm_Conversations_Repo::upsert_contact(
 			'facebook',
 			$contact_id,
@@ -175,6 +277,7 @@ final class Vitacare_Crm_Channel_Messenger {
 			)
 		);
 		if ( $conv_id <= 0 ) {
+			$diag['skip_reason'] = 'conversation_upsert_failed';
 			throw new RuntimeException( 'messenger_conversation_upsert_failed' );
 		}
 
@@ -194,14 +297,40 @@ final class Vitacare_Crm_Channel_Messenger {
 		);
 
 		if ( false === $inserted ) {
+			$diag['skip_reason'] = 'message_dedup_by_mid_on_insert';
 			return true;
 		}
 		if ( $inserted < 0 ) {
+			$diag['skip_reason'] = 'message_insert_failed';
 			throw new RuntimeException( 'messenger_message_insert_failed' );
 		}
 
+		$diag['message_created'] = true;
 		Vitacare_Crm_Conversations_Repo::touch_after_message( $conv_id, $created, $direction === 'inbound' );
 		return true;
+	}
+
+	/**
+	 * Solo para diagnóstico (D-31): indica si ya existía un hilo `facebook`
+	 * para este contacto antes del upsert de este evento. Lectura directa y
+	 * ligera, no cambia ni reemplaza la lógica de
+	 * Vitacare_Crm_Conversations_Repo::upsert_contact().
+	 */
+	private static function conversation_exists_for_diag( string $contact_id ): bool {
+		if ( $contact_id === '' ) {
+			return false;
+		}
+		global $wpdb;
+		$table = Vitacare_Crm_Db::conversations_table();
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$id = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM {$table} WHERE channel = %s AND external_contact_id = %s LIMIT 1",
+				'facebook',
+				$contact_id
+			)
+		);
+		return ! empty( $id );
 	}
 
 	/**
