@@ -6,7 +6,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 |---|---|
 | **Respaldo / código** | https://github.com/yusieluh/crmvitacare |
 | **URL producción** | https://vitacareec.org/crm |
-| **Versión** | **1.14.1** |
+| **Versión** | **1.15.0** |
 | **Fuente de información** | [`ESTADO_CRM.md`](./ESTADO_CRM.md) |
 | **Continuar después / Claude Code** | [`docs/CONTINUAR.md`](./docs/CONTINUAR.md) |
 | **Proceso docs + push** | [`docs/PROCESS.md`](./docs/PROCESS.md) |
@@ -21,7 +21,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - Integraciones **oficiales** (Meta, Google); WhatsApp = Cloud API + Coexistence  
 - Todo cambio se documenta en el repo y se **sube a GitHub**
 
-## Qué incluye v1.14.1
+## Qué incluye v1.15.0
 
 - Bandeja en `/crm` (lista, hilo, compositor)
 - WhatsApp: recibir + enviar (Cloud API), incluida media
@@ -43,6 +43,7 @@ Plugin de WordPress para **VITACARE Ecuador**: bandeja multi-canal (WhatsApp, Fa
 - **D-28 Fase 3 (v1.13.0, cierra el plan de reestructuración de integraciones)**: sección **`CRM VITACARE → Integraciones`** con pestañas por canal (Meta general/WhatsApp/Messenger/Instagram/Gmail/Zoho Mail/Diagnóstico) — muestra estado sin duplicar las páginas de conexión ya existentes. Dentro de WhatsApp: asistente oficial **Embedded Signup** (WhatsApp Business App Coexistence, `featureType: whatsapp_business_app_onboarding`) para conectar el número real sin QR local ni librerías no oficiales — el número sigue funcionando en la app del teléfono mientras el CRM recibe y envía por Cloud API. No conecta nada por sí solo: requiere completar el diálogo oficial de Meta desde `CRM VITACARE → Integraciones → WhatsApp` cuando el administrador esté listo
 - **D-28 Fase 4 (v1.14.0)**: Credenciales reorganizada en 4 bloques con ancla propia (`#meta`/`#whatsapp`/`#messenger`/`#instagram`) — App ID/Secret ya no están bajo "WhatsApp / Meta", el token de WhatsApp pasó a llamarse "WhatsApp System User Access Token" (constante preferida `VITACARE_CRM_WA_SYSTEM_USER_TOKEN`), y Messenger/Instagram ahora tienen su propio bloque de estado (solo lectura, gestionado por OAuth). Botón "Borrar" independiente por secreto, con confirmación
 - **Fix v1.14.1**: el `hub.challenge` de la verificación GET del webhook Meta se devolvía envuelto en JSON (`"12345"`); ahora se responde como texto plano exacto (`12345`), como exige Meta
+- **D-29 (v1.15.0)**: botón "Ver" en Credenciales para revelar **App Secret** y **Verify Token** en pantalla (a pedido explícito del usuario) — no aplica a WhatsApp System User Token ni TikTok Client Secret
 - Admin: Cuentas, Reportes, Leads, Enlaces, Campañas de correo, Integraciones, WhatsApp Coexistence, Facebook (+ estado Instagram), TikTok, Gmail, Zoho Mail, Credenciales
 
 ## Instalación
