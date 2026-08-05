@@ -70,9 +70,30 @@ final class Vitacare_Crm_Settings {
 		),
 	);
 
+	/** Únicos campos con botón "Ver" habilitado, a pedido explícito del usuario. */
+	private const REVEALABLE_KEYS = array( 'app_secret', 'verify_token' );
+
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'register_menu' ) );
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
+		add_action( 'wp_ajax_vitacare_crm_reveal_secret', array( __CLASS__, 'ajax_reveal_secret' ) );
+	}
+
+	/**
+	 * Devuelve el valor real de un secreto puntual para mostrarlo en pantalla.
+	 * Restringido a manage_options + nonce + lista blanca explícita.
+	 */
+	public static function ajax_reveal_secret(): void {
+		check_ajax_referer( 'vitacare_crm_reveal_secret', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Sin permiso.', 'vitacare-crm' ) ), 403 );
+		}
+		$key = isset( $_POST['key'] ) ? sanitize_key( wp_unslash( $_POST['key'] ) ) : '';
+		if ( ! in_array( $key, self::REVEALABLE_KEYS, true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Campo no permitido.', 'vitacare-crm' ) ), 400 );
+		}
+		Vitacare_Crm_Logger::info( 'secret_revealed', array( 'key' => $key, 'user_id' => get_current_user_id() ) );
+		wp_send_json_success( array( 'value' => self::get( $key ) ) );
 	}
 
 	/**
@@ -309,8 +330,8 @@ final class Vitacare_Crm_Settings {
 				<table class="form-table" role="presentation">
 					<?php
 					self::field_text( 'app_id', __( 'Meta App ID', 'vitacare-crm' ), false );
-					self::field_secret( 'app_secret', __( 'Meta App Secret', 'vitacare-crm' ) );
-					self::field_secret( 'verify_token', __( 'Verify Token (webhook)', 'vitacare-crm' ) );
+					self::field_secret( 'app_secret', __( 'Meta App Secret', 'vitacare-crm' ), true );
+					self::field_secret( 'verify_token', __( 'Verify Token (webhook)', 'vitacare-crm' ), true );
 					?>
 					<tr>
 						<th scope="row"><label for="vitacare_crm_graph_version"><?php echo esc_html__( 'Graph API version', 'vitacare-crm' ); ?></label></th>
@@ -474,6 +495,40 @@ final class Vitacare_Crm_Settings {
 
 			<?php self::render_clear_secret_section(); ?>
 		</div>
+		<script>
+		(function () {
+			document.addEventListener('click', function (e) {
+				var btn = e.target.closest('.vcrm-reveal-btn');
+				if (!btn) return;
+				var input = document.getElementById(btn.dataset.target);
+				if (!input) return;
+
+				if (input.type === 'text') {
+					// Ocultar de nuevo: volver a password y limpiar (para no reenviar el valor por error).
+					input.type = 'password';
+					input.value = '';
+					btn.innerHTML = '<span class="dashicons dashicons-visibility" style="vertical-align:middle"></span> <?php echo esc_js( __( 'Ver', 'vitacare-crm' ) ); ?>';
+					return;
+				}
+
+				var fd = new FormData();
+				fd.append('action', 'vitacare_crm_reveal_secret');
+				fd.append('nonce', btn.dataset.nonce);
+				fd.append('key', btn.dataset.key);
+				fetch(ajaxurl, { method: 'POST', credentials: 'same-origin', body: fd })
+					.then(function (r) { return r.json(); })
+					.then(function (json) {
+						if (json.success) {
+							input.type = 'text';
+							input.value = json.data.value;
+							btn.innerHTML = '<span class="dashicons dashicons-hidden" style="vertical-align:middle"></span> <?php echo esc_js( __( 'Ocultar', 'vitacare-crm' ) ); ?>';
+						} else {
+							alert((json.data && json.data.message) || '<?php echo esc_js( __( 'No se pudo revelar el valor.', 'vitacare-crm' ) ); ?>');
+						}
+					});
+			});
+		})();
+		</script>
 		<?php
 	}
 
@@ -735,7 +790,7 @@ final class Vitacare_Crm_Settings {
 		<?php
 	}
 
-	private static function field_secret( string $key, string $label ): void {
+	private static function field_secret( string $key, string $label, bool $revealable = false ): void {
 		$opt   = self::SECRETS[ $key ]['option'];
 		$fromc = self::is_from_constant( $key );
 		$has   = self::get( $key ) !== '';
@@ -743,10 +798,7 @@ final class Vitacare_Crm_Settings {
 		<tr>
 			<th scope="row"><label for="<?php echo esc_attr( $opt ); ?>"><?php echo esc_html( $label ); ?></label></th>
 			<td>
-				<?php if ( $fromc ) : ?>
-					<code><?php echo esc_html__( 'Definido en wp-config.php', 'vitacare-crm' ); ?></code>
-					<p class="description"><?php echo esc_html( self::active_const_name( $key ) ); ?></p>
-				<?php else : ?>
+				<div style="display:flex;gap:.5em;align-items:center;flex-wrap:wrap">
 					<input
 						name="<?php echo esc_attr( $opt ); ?>"
 						id="<?php echo esc_attr( $opt ); ?>"
@@ -755,10 +807,19 @@ final class Vitacare_Crm_Settings {
 						value=""
 						placeholder="<?php echo $has ? esc_attr__( '•••••• (dejar vacío para no cambiar)', 'vitacare-crm' ) : ''; ?>"
 						autocomplete="new-password"
+						<?php echo $fromc ? 'disabled' : ''; ?>
 					/>
-					<?php if ( $has ) : ?>
-						<p class="description"><?php echo esc_html__( 'Ya hay un valor guardado. Escribe uno nuevo solo para reemplazarlo.', 'vitacare-crm' ); ?></p>
+					<?php if ( $revealable && $has ) : ?>
+						<button type="button" class="button vcrm-reveal-btn" data-key="<?php echo esc_attr( $key ); ?>" data-target="<?php echo esc_attr( $opt ); ?>" data-nonce="<?php echo esc_attr( wp_create_nonce( 'vitacare_crm_reveal_secret' ) ); ?>">
+							<span class="dashicons dashicons-visibility" style="vertical-align:middle"></span>
+							<?php echo esc_html__( 'Ver', 'vitacare-crm' ); ?>
+						</button>
 					<?php endif; ?>
+				</div>
+				<?php if ( $fromc ) : ?>
+					<p class="description"><?php echo esc_html__( 'Definido en wp-config.php:', 'vitacare-crm' ); ?> <?php echo esc_html( self::active_const_name( $key ) ); ?></p>
+				<?php elseif ( $has ) : ?>
+					<p class="description"><?php echo esc_html__( 'Ya hay un valor guardado. Escribe uno nuevo solo para reemplazarlo, o usa "Ver" para revisarlo/copiarlo.', 'vitacare-crm' ); ?></p>
 				<?php endif; ?>
 			</td>
 		</tr>
